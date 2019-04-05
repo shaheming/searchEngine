@@ -41,14 +41,14 @@ public class PunctuationTokenizer implements Tokenizer {
         }
 
         String[] strings = String.valueOf(chars).toLowerCase().split("\\s+");
-        List<String> res = new ArrayList<String>();
+        List<String> res = new ArrayList<>();
         for (String s : strings) {
             if (!StopWords.stopWords.contains(s)) {
                 res.add(s);
             }
         }
         return res;
-//        throw new UnsupportedOperationException("Punctuation Tokenizer Unimplemented");
+        // throw new UnsupportedOperationException("Punctuation Tokenizer Unimplemented");
     }
 
 }
