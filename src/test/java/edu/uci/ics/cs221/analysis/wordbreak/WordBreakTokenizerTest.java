@@ -13,9 +13,9 @@ public class WordBreakTokenizerTest {
 
     @Test
     public void test1() {
-        String text = "i'mcatdog";
+        String text = "cattodog";
 
-        List<String> expected = Arrays.asList("i'm","cat", "dog");
+        List<String> expected = Arrays.asList("cat", "dog");
 
         WordBreakTokenizer tokenizer = new WordBreakTokenizer();
 

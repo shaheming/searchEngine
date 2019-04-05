@@ -6,6 +6,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.*;
 
+
 /**
  * Project 1, task 2: Implement a Dynamic-Programming based Word-Break Tokenizer.
  * <p>
@@ -32,6 +33,10 @@ import java.util.*;
  * - Stop words should be removed.
  * - If there's no possible way to break the string, throw an exception.
  */
+
+// * - A match in dictionary is case insensitive. Output tokens should all be in lower case.
+// * - Stop words should be removed.
+// * - If there's no possible way to break the string, throw an exception.
 public class WordBreakTokenizer implements Tokenizer {
     public Map<String, Double> wordDict;
     private Double maxP = Double.MIN_VALUE;
@@ -62,7 +67,7 @@ public class WordBreakTokenizer implements Tokenizer {
             maxPath = new LinkedList<>();
             //todo delete test
 //            maxPath.add(Arrays.asList(1, 2));
-            System.out.println(maxPath.getFirst());
+//            System.out.println(maxPath.getFirst());
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -70,6 +75,10 @@ public class WordBreakTokenizer implements Tokenizer {
 
     public List<String> tokenize(String text) {
         //opt[start][end] = any(opt[start][k] && opt[k+1][end])  start<= k <end
+        if (text.length() == 0) {
+            //todo find a better exception
+            throw new RuntimeException("there's no possible way to break the string");
+        }
         String lowerText = text.toLowerCase();
 
         boolean[][] wordMatrix = new boolean[lowerText.length()][lowerText.length()];
@@ -77,13 +86,13 @@ public class WordBreakTokenizer implements Tokenizer {
             Arrays.fill(wordMatrix[i], false);
         }
 
-        List<String> tokenizedWords = new ArrayList<>();
+
         //catdog
         for (int length = 1; length <= lowerText.length(); length++) {
             for (int start = 0; start < lowerText.length() - length + 1; start++) {
                 int end = start + length - 1;
                 //todo delete test
-                System.out.println(lowerText.substring(start, end + 1));
+//                System.out.println(lowerText.substring(start, end + 1));
                 if (wordDict.containsKey(lowerText.substring(start, end + 1))) {
                     wordMatrix[start][end] = true;
                 }
@@ -94,31 +103,46 @@ public class WordBreakTokenizer implements Tokenizer {
                 }
             }
         }
+        int len = wordMatrix.length;
+        if (!wordMatrix[0][len - 1]) {
+            throw new RuntimeException("there's no possible way to break the string");
+        }
 
+        List<String> tokenizedWords = new ArrayList<>();
+        //System.out.println(wordDict.get("dog"));
 
-        System.out.println(wordDict.get("dog"));
-        System.out.println(Arrays.deepToString(wordMatrix));
+        LinkedList<List<Integer>> path = new LinkedList<>();
+        findMaxPath(wordMatrix, lowerText, 0, 1, path);
+
+        for (List<Integer> temp : maxPath) {
+            //System.out.println(lowerText.substring(temp.get(0), temp.get(1) + 1));
+            String word = lowerText.substring(temp.get(0), temp.get(1) + 1);
+            //filter stop words
+            if (!StopWords.stopWords.contains(word)) {
+                tokenizedWords.add(word);
+            }
+        }
+//        System.out.println(maxPath);
         return tokenizedWords;
     }
 
-    public void findMaxPath(boolean[][] wordMatrix, String text, int start, int end, double p, LinkedList<List<Integer>> path) {
+    //dfs
+    public void findMaxPath(boolean[][] wordMatrix, String text, int start, double p, LinkedList<List<Integer>> path) {
         //start = row, end = col
         //if end == col that means we go to check the last words
-        if (start == wordMatrix.length) {
-            if (wordDict.containsKey(text.substring(start, start + 1))) {
-                p *= wordDict.get(text.substring(start, start + 1));
-                if (p > maxP) {
-                    path.add(Arrays.asList(start, end));
-                    maxPath = (LinkedList) path.clone();
-                    path.pollLast();
-                }
+        if (start >= wordMatrix.length) {
+            if (p > maxP) {
+
+                maxPath = (LinkedList) path.clone();
+
             }
+            return;
         }
 
-        for (int e = start; e < wordMatrix.length; e++) {
-            if (wordMatrix[start][e] && wordDict.containsKey(text.substring(start, e + 1))) {
-                path.add(Arrays.asList(start, e));
-                findMaxPath(wordMatrix, text, e+1, e+1, p * wordDict.get(text.substring(start, e + 1)), path);
+        for (int end = start; end < wordMatrix.length; end++) {
+            if (wordMatrix[start][end] && wordDict.containsKey(text.substring(start, end + 1))) {
+                path.add(Arrays.asList(start, end));
+                findMaxPath(wordMatrix, text, end + 1, p * wordDict.get(text.substring(start, end + 1)), path);
                 path.pollLast();
             }
         }
