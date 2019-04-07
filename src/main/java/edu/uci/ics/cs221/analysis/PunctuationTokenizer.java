@@ -29,7 +29,7 @@ public class PunctuationTokenizer implements Tokenizer {
     }
 
     public List<String> tokenize(String text) {
-        System.out.println(text.toLowerCase().replaceAll("\\p{Punct}", ""));
+//        System.out.println(text.toLowerCase().replaceAll("\\p{Punct}", ""));
 
         char[] chars = text.toCharArray();
 
@@ -40,7 +40,9 @@ public class PunctuationTokenizer implements Tokenizer {
             }
         }
 
-        String[] strings = String.valueOf(chars).toLowerCase().split("\\s+");
+        List<String> strings = new ArrayList<String>(Arrays.asList(String.valueOf(chars).toLowerCase().split("\\s+")));
+        strings.removeIf(item -> ("".equals(item)));
+//        System.out.println(strings);
         List<String> res = new ArrayList<>();
         for (String s : strings) {
             if (!StopWords.stopWords.contains(s)) {
