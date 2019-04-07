@@ -29,33 +29,28 @@ public class PunctuationTokenizer implements Tokenizer {
     }
 
     public List<String> tokenize(String text) {
-       // System.out.println(text.toLowerCase().replaceAll("\\p{Punct}", ""));
-        int j=0;
-        List<String> res = new ArrayList<>();
-        if(text.length()==0) return  res;
-        while(text.charAt(j)==' '){
-            if(text.length()==1) return res;
-            text=text.substring(1);
 
-        }
+
         char[] chars = text.toCharArray();
-        for (int i = 0; i < text.length(); i++) {
 
+        for (int i = 0; i < text.length(); i++) {
             if (punctuations.contains(String.valueOf(chars[i]))) {
                 chars[i] = ' ';
             }
-
         }
 
-        String[] strings = String.valueOf(chars).toLowerCase().split("\\s+");
+        List<String> strings = new ArrayList<>(Arrays.asList(String.valueOf(chars).toLowerCase().split("\\s+")));
 
+        strings.removeIf(item -> ("".equals(item)));
+
+        List<String> res = new ArrayList<>();
         for (String s : strings) {
             if (!StopWords.stopWords.contains(s)) {
                 res.add(s);
             }
         }
         return res;
-        // throw new UnsupportedOperationException("Punctuation Tokenizer Unimplemented");
+
     }
 
 }

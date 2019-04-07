@@ -1,5 +1,6 @@
 package edu.uci.ics.cs221.analysis.wordbreak;
 
+
 import edu.uci.ics.cs221.analysis.WordBreakTokenizer;
 import org.junit.Test;
 
@@ -12,11 +13,16 @@ public class WordBreakTokenizerTest {
 
     @Test
     public void test1() {
-        String text = "catdog";
+        String text = "cattodog";
+
         List<String> expected = Arrays.asList("cat", "dog");
+
         WordBreakTokenizer tokenizer = new WordBreakTokenizer();
 
         assertEquals(expected, tokenizer.tokenize(text));
+
+
+
 
     }
 

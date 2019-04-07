@@ -65,20 +65,18 @@ public class WordBreakTokenizer implements Tokenizer {
                 wordDict.put(entry.getKey(), freq);
             }
             maxPath = new LinkedList<>();
-            //todo delete test
-//            maxPath.add(Arrays.asList(1, 2));
-//            System.out.println(maxPath.getFirst());
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
 
     public List<String> tokenize(String text) {
-        //opt[start][end] = any(opt[start][k] && opt[k+1][end])  start<= k <end
+
         if (text.length() == 0) {
             //todo find a better exception
             throw new RuntimeException("there's no possible way to break the string");
         }
+
         String lowerText = text.toLowerCase();
 
         boolean[][] wordMatrix = new boolean[lowerText.length()][lowerText.length()];
@@ -91,8 +89,7 @@ public class WordBreakTokenizer implements Tokenizer {
         for (int length = 1; length <= lowerText.length(); length++) {
             for (int start = 0; start < lowerText.length() - length + 1; start++) {
                 int end = start + length - 1;
-                //todo delete test
-//                System.out.println(lowerText.substring(start, end + 1));
+
                 if (wordDict.containsKey(lowerText.substring(start, end + 1))) {
                     wordMatrix[start][end] = true;
                 }
@@ -122,19 +119,16 @@ public class WordBreakTokenizer implements Tokenizer {
                 tokenizedWords.add(word);
             }
         }
-//        System.out.println(maxPath);
         return tokenizedWords;
     }
 
     //dfs
-    public void findMaxPath(boolean[][] wordMatrix, String text, int start, double p, LinkedList<List<Integer>> path) {
+    private void findMaxPath(boolean[][] wordMatrix, String text, int start, double p, LinkedList<List<Integer>> path) {
         //start = row, end = col
         //if end == col that means we go to check the last words
         if (start >= wordMatrix.length) {
             if (p > maxP) {
-
                 maxPath = (LinkedList) path.clone();
-
             }
             return;
         }

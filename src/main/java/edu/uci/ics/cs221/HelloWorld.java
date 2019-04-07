@@ -11,15 +11,16 @@ import java.nio.file.Paths;
 import java.util.List;
 
 import static edu.uci.ics.cs221.storage.MapdbDocStore.createOrOpen;
+import  edu.uci.ics.cs221.analysis.StopWords;
 
 /**s
  * This is a Hello World program of our CS221 Peterman Search Engine.
  * It shows how to use the skeleton API of the search engine:
- *  1. use the provided DocumentStore to add and save documents
- *  2. use the provided FullScanSearcher and NaiveAnalyzer to do a search
- *ss
+ * 1. use the provided DocumentStore to add and save documents
+ * 2. use the provided FullScanSearcher and NaiveAnalyzer to do a search
+ * <p>
  * Over this quarter, you will be implementing various analyzers, indexes, query types, and ranking
- *  to make the search engine more efficient, powerful, and user-friendly :)
+ * to make the search engine more efficient, powerful, and user-friendly :)
  */
 public class HelloWorld {
 
@@ -49,6 +50,9 @@ public class HelloWorld {
         System.out.println("search results: ");
         for (int docID : searchResult) {
             System.out.println(docID + ": " + documentStore.getDocument(docID));
+        }
+        if (StopWords.stopWords.contains("a")) {
+            System.out.println("AAAA ");
         }
 
         fullScanSearcher.close();
