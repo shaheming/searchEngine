@@ -66,11 +66,12 @@ public class WordBreakTokenizer implements Tokenizer {
         boolean str[][]=new boolean[n][n];
         for(int j=0;j<n;j++){
             for(int i=j;i>=0;i--) {
+
            if (check(i,j,text,str)) res.add(text.substring(i,j+1));
            //System.out.print(str[i][j]);
             }
         }
-        if(!check(0,n-1,text,str)) throw new UnsupportedOperationException("No possible way to break the word");
+        if(!str[0][n-1]) throw new UnsupportedOperationException("No possible way to break the word");
         return res;
     }
 
@@ -91,7 +92,7 @@ public class WordBreakTokenizer implements Tokenizer {
         for(int i=start;i<=end;i++){
             if(str[start][i]&&str[i+1][end]) {
                 str[start][end]=true;
-                return true;
+                return false;
             }
 
         }
