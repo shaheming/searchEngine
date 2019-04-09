@@ -73,7 +73,7 @@ public class WordBreakTokenizer implements Tokenizer {
     public List<String> tokenize(String text) {
 
         if (text.length() == 0) {
-            //todo find a better exception
+            //TODO(all): find a better exception
             throw new RuntimeException("there's no possible way to break the string");
         }
 
@@ -83,8 +83,6 @@ public class WordBreakTokenizer implements Tokenizer {
         for (int i = 0; i < lowerText.length(); i++) {
             Arrays.fill(wordMatrix[i], false);
         }
-
-
         //catdog
         for (int length = 1; length <= lowerText.length(); length++) {
             for (int start = 0; start < lowerText.length() - length + 1; start++) {

@@ -43,7 +43,7 @@ public class Team5PunctuationTokenizerTest {
         String text = "         ";
         List<String> expected = Arrays.asList();
         PunctuationTokenizer tokenizer = new PunctuationTokenizer();
-        assertEquals("test more  one spaces",
+        assertEquals("test more than one spaces input",
                 expected, tokenizer.tokenize(text));
     }
     @Test
