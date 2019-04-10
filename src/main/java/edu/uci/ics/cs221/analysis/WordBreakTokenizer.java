@@ -39,7 +39,9 @@ import java.util.*;
 // * - If there's no possible way to break the string, throw an exception.
 public class WordBreakTokenizer implements Tokenizer {
     private  List<String> dictLines;
+    private  List<String> maxpath=new LinkedList<>();
     private  Map<String,Double> map=new HashMap<String, Double>();
+    private  double tmp_double=0;
     public WordBreakTokenizer() {
         try {
             // load the dictionary corpus
@@ -61,18 +63,20 @@ public class WordBreakTokenizer implements Tokenizer {
     }
 
     public List<String> tokenize(String text) {
-        List<String> res = new ArrayList<>();
+        List<String> res = new LinkedList<>();
         int n=text.length();
         boolean str[][]=new boolean[n][n];
         for(int j=0;j<n;j++){
             for(int i=j;i>=0;i--) {
 
-           if (check(i,j,text,str)) res.add(text.substring(i,j+1));
-           //System.out.print(str[i][j]);
+             check(i,j,text,str); //res.add(text.substring(i,j+1));
+              //System.out.print(str[i][j]);
             }
         }
         if(!str[0][n-1]) throw new UnsupportedOperationException("No possible way to break the word");
-        return res;
+
+        mostlikepath(str,text,0,res,n,1);
+        return maxpath;
     }
 
     boolean check(int start, int end, String text,boolean str[][]){
@@ -85,6 +89,7 @@ public class WordBreakTokenizer implements Tokenizer {
         for(int i=0;i<dictLines.size();i++){
             if(map.containsKey(tmp)) {
                 str[start][end]=true;
+
                 return true;
             }
         }
@@ -92,6 +97,7 @@ public class WordBreakTokenizer implements Tokenizer {
         for(int i=start;i<=end;i++){
             if(str[start][i]&&str[i+1][end]) {
                 str[start][end]=true;
+
                 return false;
             }
 
@@ -99,5 +105,31 @@ public class WordBreakTokenizer implements Tokenizer {
         str[start][end]=false;
         return false;
     }
+
+     void mostlikepath(boolean str[][],String text,int pointer,List<String> path,int n,double p){
+         if(pointer==text.length()){
+             if(p>=tmp_double) {
+                 tmp_double = p;
+                 maxpath.clear();
+                 for(int i=0;i<path.size();i++) maxpath.add(path.get(i));
+
+             }
+             return;
+         }
+        for(int s=pointer;s<n;s++){
+            if(str[pointer][s]&&map.containsKey(text.substring(pointer,s+1))){
+                //System.out.println(text.substring(pointer,s+1));
+                path.add(text.substring(pointer,s+1));
+                mostlikepath(str,text,s+1,path,n,p*map.get(text.substring(pointer,s+1)));
+                //System.out.println(path.get(path.size()-1));
+                path.remove(path.size()-1);
+
+            }
+
+
+        }
+        return ;
+    }
+
 
 }
