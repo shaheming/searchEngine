@@ -74,9 +74,14 @@ public class WordBreakTokenizer implements Tokenizer {
             }
         }
         if(!str[0][n-1]) throw new UnsupportedOperationException("No possible way to break the word");
-
         mostlikepath(str,text,0,res,n,1);
-        return maxpath;
+        res.clear();
+        for(int i=0;i<maxpath.size();i++){
+            if (!StopWords.stopWords.contains(maxpath.get(i))) {
+                res.add(maxpath.get(i));
+            }
+        }
+        return res;
     }
 
     boolean check(int start, int end, String text,boolean str[][]){
