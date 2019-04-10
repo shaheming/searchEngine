@@ -63,6 +63,7 @@ public class WordBreakTokenizer implements Tokenizer {
     }
 
     public List<String> tokenize(String text) {
+        text=text.toLowerCase();
         List<String> res = new LinkedList<>();
         int n=text.length();
         boolean str[][]=new boolean[n][n];
@@ -78,7 +79,7 @@ public class WordBreakTokenizer implements Tokenizer {
         res.clear();
         for(int i=0;i<maxpath.size();i++){
             if (!StopWords.stopWords.contains(maxpath.get(i))) {
-                res.add(maxpath.get(i));
+               res.add(maxpath.get(i));
             }
         }
         return res;
