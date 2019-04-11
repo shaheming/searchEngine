@@ -36,45 +36,14 @@ public class WordBreakTokenizerTest {
     }
     @Test
     public void test3() {
-        String text = "今日は学校に行きます";
-
-        List<String> expected = Arrays.asList( "今日", "学校", "行き", "ます");
-
-        WordBreakTokenizer tokenizer = new WordBreakTokenizer();
-
-        assertEquals(expected, tokenizer.tokenize(text));
-
-
-
-
-    }
-    @Test
-    public void test4() {
-        String text = "私の鉛筆がなくなったので貸してもらえませんか";
-
-        List<String> expected = Arrays.asList( "鉛筆", "なくな", "った", "ので", "貸し", "て", "もらえ", "ま", "せん", "か");
-//test stop words
-        WordBreakTokenizer tokenizer = new WordBreakTokenizer();
-
-        assertEquals(expected, tokenizer.tokenize(text));
-
-
-
-
-    }
-    @Test
-    public void test5() {
-        String text = "sdslasldshkldsaldsald";
-//test for the exception
-        List<String> expected = Arrays.asList( "");
-
-        WordBreakTokenizer tokenizer = new WordBreakTokenizer();
-
-        assertEquals(expected, tokenizer.tokenize(text));
-
-
-
-
+        String text = "sdslasldshkldsaldsald";//test for the exception
+        try {
+            WordBreakTokenizer tokenizer = new WordBreakTokenizer();
+        }
+        catch (Exception e) {
+            final String expected = "No possible way to break the word";
+            assertEquals( expected, e.getMessage());
+        }
     }
 
 
