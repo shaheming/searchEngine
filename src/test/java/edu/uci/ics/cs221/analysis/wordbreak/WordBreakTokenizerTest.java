@@ -22,9 +22,9 @@ public class WordBreakTokenizerTest {
     }
     @Test
     public void test2() {
-        String text = "Iampig";
+        String text = "something";
 
-        List<String> expected = Arrays.asList( "pig");
+        List<String> expected = Arrays.asList( "something");
 
         WordBreakTokenizer tokenizer = new WordBreakTokenizer();
 
