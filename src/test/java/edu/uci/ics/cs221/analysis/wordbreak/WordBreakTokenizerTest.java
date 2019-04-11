@@ -17,13 +17,38 @@ public class WordBreakTokenizerTest {
         String text = "cattodog";
         List<String> expected = Arrays.asList("cat", "dog");
         WordBreakTokenizer tokenizer = new WordBreakTokenizer();
-        long startTime=System.currentTimeMillis();   //获取开始时间
-        List<String> r = tokenizer.tokenize(text);
-        long endTime=System.currentTimeMillis(); //获取结束时间
-        System.out.println("run time： "+(endTime-startTime)+"ms");
-        System.out.println((double) startTime/(double)endTime);
-        assertEquals(expected,r );
+        assertEquals(expected, tokenizer.tokenize(text));
 
     }
+    @Test
+    public void test2() {
+        String text = "something";
+
+        List<String> expected = Arrays.asList( "something");
+
+        WordBreakTokenizer tokenizer = new WordBreakTokenizer();
+
+        assertEquals(expected, tokenizer.tokenize(text));
+
+
+
+
+    }
+
+    @Test
+    public void test5() {
+        String text = "sdslasldshkldsaldsald";
+//test for the exception
+        List<String> expected = Arrays.asList( "");
+
+        WordBreakTokenizer tokenizer = new WordBreakTokenizer();
+
+        assertEquals(expected, tokenizer.tokenize(text));
+
+
+
+
+    }
+
 
 }

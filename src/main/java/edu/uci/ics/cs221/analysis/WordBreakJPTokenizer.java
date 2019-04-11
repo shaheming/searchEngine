@@ -46,11 +46,11 @@ public class WordBreakJPTokenizer implements Tokenizer {
     public WordBreakJPTokenizer() {
         try {
             // load the dictionary corpus
-            URL dictResource = WordBreakJPTokenizer.class.getClassLoader().getResource("dict_cn.txt");
+            URL dictResource = WordBreakJPTokenizer.class.getClassLoader().getResource("dict_jp.txt");
 //            System.out.println(dictResource);
             List<String> dictLines = Files.readAllLines(Paths.get(dictResource.toURI()));
 //System.out.println("dictLines size: " + dictLines.size());
-           //System.out.println(dictLines.get(10));
+            //System.out.println(dictLines.get(10));
 
             wordDict = new HashMap<>();
             Double wordsCount = 0.0;
@@ -75,7 +75,6 @@ public class WordBreakJPTokenizer implements Tokenizer {
     public List<List<Integer>> getDAG(String s) {
 
         List<List<Integer>> DAG = new ArrayList<>();
-
         for (int i = 0; i < s.length(); i++) {
             DAG.add(new ArrayList<>());
             int j = i;
@@ -107,7 +106,9 @@ public class WordBreakJPTokenizer implements Tokenizer {
 //        System.out.println(Arrays.toString(pres));
         while (pre != pres[pre]) {
 //            System.out.println(text.substring(pres[pre], pre));
-            tokenizedWords.addFirst(text.substring(pres[pre], pre));
+            if (!StopWords.stopWords.contains(text.substring(pres[pre], pre))) {
+                tokenizedWords.addFirst(text.substring(pres[pre], pre));
+            }
             pre = pres[pre];
         }
         return new ArrayList<>(tokenizedWords);
@@ -123,12 +124,14 @@ public class WordBreakJPTokenizer implements Tokenizer {
         //edge w1 -> w2 represent the frequency of words w1 in dict
         double[] dist = new double[dag.size() + 1];
         int[] pre = new int[dag.size() + 1];
-        Arrays.fill(dist, -1.0);
+        Arrays.fill(dist, 0.0);
         dist[0] = 1.0;
         pre[0] = 0;
         for (int i = 0; i < dag.size(); i++) {
             for (int j : dag.get(i)) {
                 double p = wordDict.get(text.substring(i, j)) / totalWords;
+                System.out.println(text.substring(i, j)+ " " + wordDict.get(text.substring(i, j) ));
+                System.out.println(Arrays.toString(dist));
                 if (dist[i] * p > dist[j]) {
                     pre[j] = i;
                     dist[j] = dist[i] * p;
