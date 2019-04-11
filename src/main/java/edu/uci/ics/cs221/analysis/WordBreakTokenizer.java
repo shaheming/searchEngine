@@ -38,105 +38,104 @@ import java.util.*;
 // * - Stop words should be removed.
 // * - If there's no possible way to break the string, throw an exception.
 public class WordBreakTokenizer implements Tokenizer {
-    public Map<String, Double> wordDict;
-    private Double maxP = Double.MIN_VALUE;
-    private LinkedList<List<Integer>> maxPath;
-
-
+    private  List<String> dictLines;
+    private  List<String> maxpath=new LinkedList<>();
+    private  Map<String,Double> map=new HashMap<String, Double>();
+    private  double tmp_double=0;
     public WordBreakTokenizer() {
         try {
             // load the dictionary corpus
             URL dictResource = WordBreakTokenizer.class.getClassLoader().getResource("cs221_frequency_dictionary_en.txt");
-            System.out.println(dictResource);
-            List<String> dictLines = Files.readAllLines(Paths.get(dictResource.toURI()));
-            System.out.println("dictLines size: " + dictLines.size());
-            System.out.println(dictLines.get(0));
+            dictLines = Files.readAllLines(Paths.get(dictResource.toURI()));
+           // System.out.println(dictLines.get(1));
+            double sum=0;
+            for(int i=0;i<dictLines.size();i++){
+                sum=sum+Double.parseDouble(dictLines.get(i).split(" ")[1]);
+            }
+            for(int i=0;i<dictLines.size();i++){
+                Double tmp=Double.valueOf(Double.parseDouble(dictLines.get(i).split(" ")[1])/sum);
+                map.put(dictLines.get(i).split(" ")[0],tmp);
+            }
 
-            wordDict = new HashMap<>();
-            Double wordsCount = 0.0;
-            for (String line : dictLines) {
-                String[] col = line.split("\\s");
-                Double freq = Double.valueOf(col[1]);
-                wordsCount += freq;
-                wordDict.put(col[0], freq);
-            }
-            for (Map.Entry<String, Double> entry : wordDict.entrySet()) {
-                Double freq = entry.getValue() / wordsCount;
-                wordDict.put(entry.getKey(), freq);
-            }
-            maxPath = new LinkedList<>();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
 
     public List<String> tokenize(String text) {
+        text=text.toLowerCase();
+        List<String> res = new LinkedList<>();
+        int n=text.length();
+        boolean str[][]=new boolean[n][n];
+        for(int j=0;j<n;j++){
+            for(int i=j;i>=0;i--) {
 
-        if (text.length() == 0) {
-            //TODO(all): find a better exception
-            throw new RuntimeException("there's no possible way to break the string");
-        }
-
-        String lowerText = text.toLowerCase();
-
-        boolean[][] wordMatrix = new boolean[lowerText.length()][lowerText.length()];
-        for (int i = 0; i < lowerText.length(); i++) {
-            Arrays.fill(wordMatrix[i], false);
-        }
-        //catdog
-        for (int length = 1; length <= lowerText.length(); length++) {
-            for (int start = 0; start < lowerText.length() - length + 1; start++) {
-                int end = start + length - 1;
-
-                if (wordDict.containsKey(lowerText.substring(start, end + 1))) {
-                    wordMatrix[start][end] = true;
-                }
-                for (int k = start; k < end; k++) {
-                    if (wordMatrix[start][k] && wordMatrix[k + 1][end]) {
-                        wordMatrix[start][end] = true;
-                    }
-                }
+             check(i,j,text,str); //res.add(text.substring(i,j+1));
+              //System.out.print(str[i][j]);
             }
         }
-        int len = wordMatrix.length;
-        if (!wordMatrix[0][len - 1]) {
-            throw new RuntimeException("there's no possible way to break the string");
-        }
-
-        List<String> tokenizedWords = new ArrayList<>();
-        //System.out.println(wordDict.get("dog"));
-
-        LinkedList<List<Integer>> path = new LinkedList<>();
-        findMaxPath(wordMatrix, lowerText, 0, 1, path);
-
-        for (List<Integer> temp : maxPath) {
-            //System.out.println(lowerText.substring(temp.get(0), temp.get(1) + 1));
-            String word = lowerText.substring(temp.get(0), temp.get(1) + 1);
-            //filter stop words
-            if (!StopWords.stopWords.contains(word)) {
-                tokenizedWords.add(word);
+        if(!str[0][n-1]) throw new UnsupportedOperationException("No possible way to break the word");
+        mostlikepath(str,text,0,res,n,1);
+        res.clear();
+        for(int i=0;i<maxpath.size();i++){
+            if (!StopWords.stopWords.contains(maxpath.get(i))) {
+               res.add(maxpath.get(i));
             }
         }
-        return tokenizedWords;
+        return res;
     }
 
-    //dfs
-    private void findMaxPath(boolean[][] wordMatrix, String text, int start, double p, LinkedList<List<Integer>> path) {
-        //start = row, end = col
-        //if end == col that means we go to check the last words
-        if (start >= wordMatrix.length) {
-            if (p > maxP) {
-                maxPath = (LinkedList) path.clone();
+    boolean check(int start, int end, String text,boolean str[][]){
+        if(end<start) {
+            str[start][end]=false;
+            return false;
+        }
+        String tmp=text.substring(start,end+1);
+
+        for(int i=0;i<dictLines.size();i++){
+            if(map.containsKey(tmp)) {
+                str[start][end]=true;
+
+                return true;
             }
-            return;
         }
 
-        for (int end = start; end < wordMatrix.length; end++) {
-            if (wordMatrix[start][end] && wordDict.containsKey(text.substring(start, end + 1))) {
-                path.add(Arrays.asList(start, end));
-                findMaxPath(wordMatrix, text, end + 1, p * wordDict.get(text.substring(start, end + 1)), path);
-                path.pollLast();
+        for(int i=start;i<=end;i++){
+            if(str[start][i]&&str[i+1][end]) {
+                str[start][end]=true;
+
+                return false;
             }
+
         }
+        str[start][end]=false;
+        return false;
     }
+
+     void mostlikepath(boolean str[][],String text,int pointer,List<String> path,int n,double p){
+         if(pointer==text.length()){
+             if(p>=tmp_double) {
+                 tmp_double = p;
+                 maxpath.clear();
+                 for(int i=0;i<path.size();i++) maxpath.add(path.get(i));
+
+             }
+             return;
+         }
+        for(int s=pointer;s<n;s++){
+            if(str[pointer][s]&&map.containsKey(text.substring(pointer,s+1))){
+                //System.out.println(text.substring(pointer,s+1));
+                path.add(text.substring(pointer,s+1));
+                mostlikepath(str,text,s+1,path,n,p*map.get(text.substring(pointer,s+1)));
+                //System.out.println(path.get(path.size()-1));
+                path.remove(path.size()-1);
+
+            }
+
+
+        }
+        return ;
+    }
+
+
 }
