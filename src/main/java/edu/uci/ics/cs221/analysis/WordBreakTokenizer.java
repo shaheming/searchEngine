@@ -47,24 +47,29 @@ public class WordBreakTokenizer implements Tokenizer {
             // load the dictionary corpus
             URL dictResource = WordBreakTokenizer.class.getClassLoader().getResource("cs221_frequency_dictionary_en.txt");
             dictLines = Files.readAllLines(Paths.get(dictResource.toURI()));
-           // System.out.println(dictLines.get(1));
             double sum=0;
             for(int i=0;i<dictLines.size();i++){
                 sum=sum+Double.parseDouble(dictLines.get(i).split(" ")[1]);
             }
+
             for(int i=0;i<dictLines.size();i++){
-                Double tmp=Double.valueOf(Double.parseDouble(dictLines.get(i).split(" ")[1])/sum);
-                map.put(dictLines.get(i).split(" ")[0],tmp);
+                String word[]=dictLines.get(i).split(" ");
+                if (i==0&&word[0].startsWith("\uFEFF")) {
+                    word[0]= word[0].substring(1);
+                }
+                Double tmp=Double.valueOf(Double.parseDouble(word[1])/sum);
+                map.put(word[0],tmp);
             }
 
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
-
     public List<String> tokenize(String text) {
+
         text=text.toLowerCase();
         List<String> res = new LinkedList<>();
+        if(text.equals("")) return res;
         int n=text.length();
         boolean str[][]=new boolean[n][n];
         for(int j=0;j<n;j++){
@@ -94,6 +99,7 @@ public class WordBreakTokenizer implements Tokenizer {
 
         for(int i=0;i<dictLines.size();i++){
             if(map.containsKey(tmp)) {
+                //System.out.println(tmp);
                 str[start][end]=true;
 
                 return true;

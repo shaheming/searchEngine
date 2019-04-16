@@ -27,9 +27,9 @@ public class WordBreakJPTokenizerTest {
 
     @Test
     public void test2() {
-        String text = "私の鉛筆がなくなったので貸してもらえませんか";
+        String text = "今日とても悲しい";
 
-        List<String> expected = Arrays.asList("鉛筆", "なくな", "っ","た","貸し", "て", "もらえ", "ま", "せ","ん", "か");
+        List<String> expected = Arrays.asList("今日","とても","悲し","い");
 //test stop words
         WordBreakJPTokenizer tokenizer = new WordBreakJPTokenizer();
         //long startTime = System.currentTimeMillis();   //获取开始时间
