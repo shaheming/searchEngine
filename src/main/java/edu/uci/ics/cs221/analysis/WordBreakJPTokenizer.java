@@ -130,8 +130,8 @@ public class WordBreakJPTokenizer implements Tokenizer {
         for (int i = 0; i < dag.size(); i++) {
             for (int j : dag.get(i)) {
                 double p = wordDict.get(text.substring(i, j)) / totalWords;
-                System.out.println(text.substring(i, j)+ " " + wordDict.get(text.substring(i, j) ));
-                System.out.println(Arrays.toString(dist));
+                //System.out.println(text.substring(i, j)+ " " + wordDict.get(text.substring(i, j) ));
+                //System.out.println(Arrays.toString(dist));
                 if (dist[i] * p > dist[j]) {
                     pre[j] = i;
                     dist[j] = dist[i] * p;
