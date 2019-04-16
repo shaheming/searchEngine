@@ -17,7 +17,7 @@ public class WordBreakJPTokenizerTest {
 
         List<String> expected = Arrays.asList("今日", "学校", "行き", "ます");
 
-        WordBreakJPTokenizer tokenizer = new WordBreakJPTokenizer();
+        WordBreakTokenizer tokenizer = new WordBreakTokenizer();
 
         assertEquals(expected, tokenizer.tokenize(text));
 

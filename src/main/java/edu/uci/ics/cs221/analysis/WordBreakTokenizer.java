@@ -45,7 +45,7 @@ public class WordBreakTokenizer implements Tokenizer {
     public WordBreakTokenizer() {
         try {
             // load the dictionary corpus
-            URL dictResource = WordBreakTokenizer.class.getClassLoader().getResource("cs221_frequency_dictionary_en.txt");
+            URL dictResource = WordBreakTokenizer.class.getClassLoader().getResource("dict_jp.txt");
             dictLines = Files.readAllLines(Paths.get(dictResource.toURI()));
            // System.out.println(dictLines.get(1));
             double sum=0;

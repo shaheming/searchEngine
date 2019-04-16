@@ -46,7 +46,7 @@ public class WordBreakJPTokenizer implements Tokenizer {
     public WordBreakJPTokenizer() {
         try {
             // load the dictionary corpus
-            URL dictResource = WordBreakJPTokenizer.class.getClassLoader().getResource("dict_jp.txt");
+            URL dictResource = WordBreakJPTokenizer.class.getClassLoader().getResource("cs221_frequency_dictionary_en1.txt");
 //            System.out.println(dictResource);
             List<String> dictLines = Files.readAllLines(Paths.get(dictResource.toURI()));
 //System.out.println("dictLines size: " + dictLines.size());
@@ -130,8 +130,6 @@ public class WordBreakJPTokenizer implements Tokenizer {
         for (int i = 0; i < dag.size(); i++) {
             for (int j : dag.get(i)) {
                 double p = wordDict.get(text.substring(i, j)) / totalWords;
-                System.out.println(text.substring(i, j)+ " " + wordDict.get(text.substring(i, j) ));
-                System.out.println(Arrays.toString(dist));
                 if (dist[i] * p > dist[j]) {
                     pre[j] = i;
                     dist[j] = dist[i] * p;
