@@ -40,7 +40,7 @@ public class WordBreakTokenizerSha implements Tokenizer {
     public Map<String, Double> wordDict;
     private Double maxP = Double.MIN_VALUE;
     private LinkedList<List<Integer>> maxPath;
-
+    private Double wordsCount = 0.0;
 
     public WordBreakTokenizerSha() {
         try {
@@ -48,21 +48,23 @@ public class WordBreakTokenizerSha implements Tokenizer {
             URL dictResource = WordBreakTokenizerSha.class.getClassLoader().getResource("cs221_frequency_dictionary_en.txt");
             System.out.println(dictResource);
             List<String> dictLines = Files.readAllLines(Paths.get(dictResource.toURI()));
-            System.out.println("dictLines size: " + dictLines.size());
             System.out.println(dictLines.get(0));
 
             wordDict = new HashMap<>();
-            Double wordsCount = 0.0;
+
             for (String line : dictLines) {
+                if (line.startsWith("\uFEFF")) {
+                    line = line.substring(1);
+                }
                 String[] col = line.split("\\s");
                 Double freq = Double.valueOf(col[1]);
                 wordsCount += freq;
                 wordDict.put(col[0], freq);
             }
-            for (Map.Entry<String, Double> entry : wordDict.entrySet()) {
-                Double freq = entry.getValue() / wordsCount;
-                wordDict.put(entry.getKey(), freq);
-            }
+//            for (Map.Entry<String, Double> entry : wordDict.entrySet()) {
+//                Double freq = entry.getValue() / wordsCount;
+//                wordDict.put(entry.getKey(), freq);
+//            }
             maxPath = new LinkedList<>();
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -77,7 +79,7 @@ public class WordBreakTokenizerSha implements Tokenizer {
         }
 
         String lowerText = text.toLowerCase();
-
+        System.out.println(lowerText);
         boolean[][] wordMatrix = new boolean[lowerText.length()][lowerText.length()];
         for (int i = 0; i < lowerText.length(); i++) {
             Arrays.fill(wordMatrix[i], false);
@@ -89,6 +91,7 @@ public class WordBreakTokenizerSha implements Tokenizer {
 
                 if (wordDict.containsKey(lowerText.substring(start, end + 1))) {
                     wordMatrix[start][end] = true;
+
                 }
                 for (int k = start; k < end; k++) {
                     if (wordMatrix[start][k] && wordMatrix[k + 1][end]) {
@@ -123,9 +126,12 @@ public class WordBreakTokenizerSha implements Tokenizer {
     private void findMaxPath(boolean[][] wordMatrix, String text, int start, double p, LinkedList<List<Integer>> path) {
         //start = row, end = col
         //if end == col that means we go to check the last words
+
         if (start >= wordMatrix.length) {
+
             if (p > maxP) {
                 maxPath = (LinkedList) path.clone();
+                maxP = p;
             }
             return;
         }
@@ -133,7 +139,7 @@ public class WordBreakTokenizerSha implements Tokenizer {
         for (int end = start; end < wordMatrix.length; end++) {
             if (wordMatrix[start][end] && wordDict.containsKey(text.substring(start, end + 1))) {
                 path.add(Arrays.asList(start, end));
-                findMaxPath(wordMatrix, text, end + 1, p * wordDict.get(text.substring(start, end + 1)), path);
+                findMaxPath(wordMatrix, text, end + 1, p * wordDict.get(text.substring(start, end + 1)) / wordsCount, path);
                 path.pollLast();
             }
         }

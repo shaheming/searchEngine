@@ -1,7 +1,6 @@
 package edu.uci.ics.cs221.analysis.wordbreak;
 
-import edu.uci.ics.cs221.analysis.WordBreakJPTokenizer;
-import edu.uci.ics.cs221.analysis.WordBreakTokenizer;
+import edu.uci.ics.cs221.analysis.WordBreakCJKTokenizer;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -9,7 +8,7 @@ import java.util.List;
 
 import static org.junit.Assert.*;
 
-public class WordBreakJPTokenizerTest {
+public class WordBreakCJKTokenizerTest {
 
     @Test
     public void test1() {
@@ -17,7 +16,7 @@ public class WordBreakJPTokenizerTest {
 
         List<String> expected = Arrays.asList("今日", "学校", "行き", "ま","す");
 
-        WordBreakTokenizer tokenizer = new WordBreakTokenizer();
+        WordBreakCJKTokenizer tokenizer = new WordBreakCJKTokenizer("JP");
 
         assertEquals(expected, tokenizer.tokenize(text));
 
@@ -31,7 +30,7 @@ public class WordBreakJPTokenizerTest {
 
         List<String> expected = Arrays.asList("鉛筆", "なくな", "っ","た","貸し", "て", "もらえ", "ま", "せ","ん", "か");
 //test stop words
-        WordBreakJPTokenizer tokenizer = new WordBreakJPTokenizer();
+        WordBreakCJKTokenizer tokenizer = new WordBreakCJKTokenizer("JP");
         //long startTime = System.currentTimeMillis();   //获取开始时间
        // List<String> r = tokenizer.tokenize(text);
         //long endTime = System.currentTimeMillis(); //获取结束时间
@@ -45,10 +44,35 @@ public class WordBreakJPTokenizerTest {
     public void test3() {
         String text = "sdslasldshkldsaldsald";//test for the exception
         try {
-            WordBreakJPTokenizer tokenizer = new WordBreakJPTokenizer();
+            WordBreakCJKTokenizer tokenizer = new WordBreakCJKTokenizer("JP");
         } catch (Exception e) {
             final String expected = "No possible way to break the word";
             assertEquals(expected, e.getMessage());
         }
+    }
+
+    @Test
+    public void test4() throws Exception {
+        WordBreakCJKTokenizer tokenizer = new WordBreakCJKTokenizer("CN");
+        String s = "去北京大学玩";
+        List<String> expected = Arrays.asList("去", "北京大学","玩");
+        long startTime=System.currentTimeMillis();   //获取开始时间
+        List<String> r = tokenizer.tokenize(s);
+        long endTime=System.currentTimeMillis(); //获取结束时间
+        System.out.println("run time： "+(endTime-startTime)+"ms");
+        assertEquals(expected,r );
+
+    }
+    @Test
+    public void test5() throws Exception {
+        WordBreakCJKTokenizer tokenizer = new WordBreakCJKTokenizer("CN");
+        String s = "去";
+        List<String> expected = Arrays.asList("去");
+        long startTime=System.currentTimeMillis();   //获取开始时间
+        List<String> r = tokenizer.tokenize(s);
+        long endTime=System.currentTimeMillis(); //获取结束时间
+        System.out.println("run time： "+(endTime-startTime)+"ms");
+        assertEquals(expected,r );
+
     }
 }

@@ -36,25 +36,30 @@ import java.util.*;
 // * - A match in dictionary is case insensitive. Output tokens should all be in lower case.
 // * - Stop words should be removed.
 // * - If there's no possible way to break the string, throw an exception.
-public class WordBreakJPTokenizer implements Tokenizer {
+public class WordBreakCJKTokenizer implements Tokenizer {
     public static Map<String, Double> wordDict;
     public static Double totalWords;
-    private Double maxP = Double.MIN_VALUE;
-    private LinkedList<List<Integer>> maxPath;
 
 
-    public WordBreakJPTokenizer() {
+    public WordBreakCJKTokenizer(String language) {
+
+        String dict_path = "";
+        if (language.equals("JP"))
+            dict_path = "dict_jp.txt";
+        else if (language.equals("CN"))
+            dict_path = "dict_cn.txt";
+
+        if (dict_path.length() == 0)
+            throw new RuntimeException("no dictionary set");
         try {
-            // load the dictionary corpus
-            URL dictResource = WordBreakJPTokenizer.class.getClassLoader().getResource("cs221_frequency_dictionary_en1.txt");
-//            System.out.println(dictResource);
+            URL dictResource = WordBreakCJKTokenizer.class.getClassLoader().getResource(dict_path);
             List<String> dictLines = Files.readAllLines(Paths.get(dictResource.toURI()));
-//System.out.println("dictLines size: " + dictLines.size());
-            //System.out.println(dictLines.get(10));
-
             wordDict = new HashMap<>();
             Double wordsCount = 0.0;
             for (String line : dictLines) {
+                if (line.startsWith("\uFEFF")) {
+                    line = line.substring(1);
+                }
                 String[] col = line.split("\\s");
                 Double freq = Double.valueOf(col[1]);
                 wordsCount += freq;
@@ -66,7 +71,6 @@ public class WordBreakJPTokenizer implements Tokenizer {
                 }
             }
             totalWords = wordsCount;
-            maxPath = new LinkedList<>();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
