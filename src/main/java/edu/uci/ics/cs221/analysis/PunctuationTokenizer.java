@@ -1,10 +1,10 @@
 package edu.uci.ics.cs221.analysis;
-
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.ArrayList;
+
 
 /**
  * Project 1, task 1: Implement a simple tokenizer based on punctuations and white spaces.
@@ -29,7 +29,6 @@ public class PunctuationTokenizer implements Tokenizer {
     }
 
     public List<String> tokenize(String text) {
-
 
         char[] chars = text.toCharArray();
 

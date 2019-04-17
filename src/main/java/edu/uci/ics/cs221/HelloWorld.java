@@ -51,9 +51,6 @@ public class HelloWorld {
         for (int docID : searchResult) {
             System.out.println(docID + ": " + documentStore.getDocument(docID));
         }
-        if (StopWords.stopWords.contains("a")) {
-            System.out.println("AAAA ");
-        }
 
         fullScanSearcher.close();
 
