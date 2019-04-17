@@ -13,7 +13,7 @@ public class WordBreakTokenizerTest {
 
     @Test
     public void test1() {
-        String text = "cattodog";
+        String text = "thecat";
 
         List<String> expected = Arrays.asList("cat", "dog");
         WordBreakTokenizer tokenizer = new WordBreakTokenizer();

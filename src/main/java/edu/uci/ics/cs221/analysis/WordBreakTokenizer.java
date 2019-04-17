@@ -1,5 +1,4 @@
 package edu.uci.ics.cs221.analysis;
-
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -7,6 +6,8 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+
+
 
 /**
  * Project 1, task 2: Implement a Dynamic-Programming based Word-Break Tokenizer.
@@ -60,6 +61,7 @@ public class WordBreakTokenizer implements Tokenizer {
                 Double tmp = Double.valueOf(Double.parseDouble(word[1]) / sum);
 
                 map.put(word[0], tmp);
+
             }
 
         } catch (Exception e) {
@@ -68,12 +70,15 @@ public class WordBreakTokenizer implements Tokenizer {
     }
 
     public List<String> tokenize(String text) {
+
         text = text.toLowerCase();
         List<String> res = new LinkedList<>();
+        if (text.equals("")) return res;
         int n = text.length();
         boolean str[][] = new boolean[n][n];
         for (int j = 0; j < n; j++) {
             for (int i = j; i >= 0; i--) {
+
 
                 check(i, j, text, str); //res.add(text.substring(i,j+1));
                 //System.out.print(str[i][j]);
@@ -97,10 +102,11 @@ public class WordBreakTokenizer implements Tokenizer {
         }
         String tmp = text.substring(start, end + 1);
 
+
         for (int i = 0; i < dictLines.size(); i++) {
             if (map.containsKey(tmp)) {
+                //System.out.println(tmp);
                 str[start][end] = true;
-
                 return true;
             }
         }
@@ -138,6 +144,7 @@ public class WordBreakTokenizer implements Tokenizer {
             }
         }
     }
+
 
 }
 
