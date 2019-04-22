@@ -6,6 +6,7 @@ import edu.uci.ics.cs221.storage.DocumentStore;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.*;
 
 /**
  * FullScanSearcher is a naive inefficient implementation of searching,
@@ -31,7 +32,7 @@ public class FullScanSearcher implements AutoCloseable {
             int docID = entry.getKey();
             Document doc = entry.getValue();
             List<String> keywordAnalyzed = analyzer.analyze(keyword);
-            if (! keywordAnalyzed.isEmpty() && analyzer.analyze(doc.getText()).containsAll(keywordAnalyzed)) {
+            if (!keywordAnalyzed.isEmpty() && analyzer.analyze(doc.getText()).containsAll(keywordAnalyzed)) {
                 resultDocs.add(docID);
             }
         });
@@ -43,4 +44,6 @@ public class FullScanSearcher implements AutoCloseable {
     public void close() {
         this.documentStore.close();
     }
+
+
 }
