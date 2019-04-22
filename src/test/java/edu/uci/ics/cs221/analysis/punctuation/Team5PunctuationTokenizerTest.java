@@ -51,7 +51,7 @@ public class Team5PunctuationTokenizerTest {
         String text = "    tomorrow";
         List<String> expected = Arrays.asList("tomorrow");
         PunctuationTokenizer tokenizer = new PunctuationTokenizer();
-        assertEquals("test more than one spaces between words",
+        assertEquals("test more than one spaces with word",
                 expected, tokenizer.tokenize(text));
     }
     @Test
@@ -86,7 +86,7 @@ public class Team5PunctuationTokenizerTest {
         List<String> expected = Arrays.asList("hidden", "information");
         PunctuationTokenizer tokenizer = new PunctuationTokenizer();
 
-        assertEquals("test all stop words and punctuations: ",
+        assertEquals("test all stop words and punctuations.",
                 expected, tokenizer.tokenize(text));
     }
 
@@ -96,7 +96,7 @@ public class Team5PunctuationTokenizerTest {
         List<String> expected = Arrays.asList("don't", "like","fast","man");
         PunctuationTokenizer tokenizer = new PunctuationTokenizer();
 
-        assertEquals("test not punctuations that should not be removed.",
+        assertEquals("test punctuations that should not be removed.",
                 expected, tokenizer.tokenize(text));
     }
 

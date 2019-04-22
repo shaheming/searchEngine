@@ -2,13 +2,19 @@ package edu.uci.ics.cs221;
 
 import edu.uci.ics.cs221.analysis.Analyzer;
 import edu.uci.ics.cs221.analysis.NaiveAnalyzer;
+import edu.uci.ics.cs221.analysis.PunctuationTokenizer;
+import edu.uci.ics.cs221.analysis.StopWords;
 import edu.uci.ics.cs221.search.FullScanSearcher;
 import edu.uci.ics.cs221.storage.Document;
 import edu.uci.ics.cs221.storage.DocumentStore;
 
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.Collections;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.Random;
+import java.util.stream.Collectors;
 
 import static edu.uci.ics.cs221.storage.MapdbDocStore.createOrOpen;
 import  edu.uci.ics.cs221.analysis.StopWords;
@@ -53,7 +59,5 @@ public class HelloWorld {
         }
 
         fullScanSearcher.close();
-
     }
-
 }
