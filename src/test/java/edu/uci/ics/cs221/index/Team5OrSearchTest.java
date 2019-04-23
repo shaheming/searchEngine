@@ -10,7 +10,9 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.sql.Array;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 
@@ -40,14 +42,25 @@ public class Team5OrSearchTest {
     @Test
     public void searchOrQuery() throws Exception {
 
+
         List<String> strs = new ArrayList<>();
+        List<Boolean> flag = new ArrayList<>();
         strs.add("cat");
         strs.add("dog");
+
         Iterator<Document> iterator = invertlist.searchOrQuery(strs);
         while (iterator.hasNext()) {
             String text = iterator.next().getText();
-            assertEquals(true, text.contains("dog") || text.contains("cat"));
+            if(text.contains("dog") || text.contains("cat")){
+                flag.add(true);
+            }
+            else flag.add(false);
         }
+
+
+
+        assertEquals(Arrays.asList(true,true),flag );
+        flag.clear();
 
     }
 
@@ -60,6 +73,6 @@ public class Team5OrSearchTest {
 
     }
     //todo test if the query find all matched docs
-    //todo delete tmp file after test
+
 
 }
