@@ -1,9 +1,10 @@
-package edu.uci.ics.cs221.index.inverted;
+package edu.uci.ics.cs221.search;
 
 import edu.uci.ics.cs221.analysis.Analyzer;
 import edu.uci.ics.cs221.analysis.ComposableAnalyzer;
 import edu.uci.ics.cs221.analysis.PorterStemmer;
 import edu.uci.ics.cs221.analysis.WordBreakTokenizer;
+import edu.uci.ics.cs221.index.inverted.InvertedIndexManager;
 import edu.uci.ics.cs221.storage.Document;
 import org.junit.Before;
 import org.junit.Test;
