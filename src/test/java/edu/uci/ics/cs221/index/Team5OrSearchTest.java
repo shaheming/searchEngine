@@ -1,4 +1,4 @@
-package edu.uci.ics.cs221.search;
+package edu.uci.ics.cs221.index;
 
 import edu.uci.ics.cs221.analysis.Analyzer;
 import edu.uci.ics.cs221.analysis.ComposableAnalyzer;
