@@ -6,32 +6,35 @@ import edu.uci.ics.cs221.analysis.PorterStemmer;
 import edu.uci.ics.cs221.analysis.WordBreakTokenizer;
 import edu.uci.ics.cs221.index.inverted.InvertedIndexManager;
 import edu.uci.ics.cs221.storage.Document;
+import edu.uci.ics.cs221.storage.DocumentStore;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.sql.Array;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
-
+import static edu.uci.ics.cs221.storage.MapdbDocStore.createOrOpen;
 import static org.junit.Assert.*;
 
 public class Team5OrSearchTest {
     private InvertedIndexManager invertlist;
-    private ArrayList<Document> docs;
+    private DocumentStore documentStore=createOrOpen("./test.db");
 
     @Before
     public void setUp() throws Exception {
         Analyzer analyzer = new ComposableAnalyzer(new WordBreakTokenizer(), new PorterStemmer());
         invertlist = InvertedIndexManager.createOrOpen("src/test/java/edu/uci/ics/cs221/index/Team5OrSearchTest", analyzer);
-        docs.add(new Document("cat dog toy"));
-        docs.add(new Document("cat Dot"));
-        docs.add(new Document("cat dot toy"));
-        docs.add(new Document("cat toy Dog"));
-        docs.add(new Document(""));
-        docs.add(new Document("cat Dog"));
+        documentStore.addDocument(0,new Document("cat dog toy"));
+        documentStore.addDocument(1,new Document("cat Dot"));
+        documentStore.addDocument(2,new Document("cat dot toy"));
+        documentStore.addDocument(3,new Document("cat toy Dog"));
+        documentStore.addDocument(4,new Document(""));
+        documentStore.addDocument(5,new Document("cat Dog"));
 
 
         //todo add more docs
@@ -40,7 +43,7 @@ public class Team5OrSearchTest {
 
     //test if query find correct answer
     @Test
-    public void searchOrQuery() throws Exception {
+    public void Test1() throws Exception {
 
 
         List<String> strs = new ArrayList<>();
@@ -59,7 +62,33 @@ public class Team5OrSearchTest {
 
 
 
-        assertEquals(Arrays.asList(true,true),flag );
+        assertEquals(Arrays.asList(true,true,true,true),flag );
+        flag.clear();
+
+    }
+
+
+    @Test
+    public void Test2() throws Exception {
+
+
+        List<String> strs = new ArrayList<>();
+        List<Boolean> flag = new ArrayList<>();
+        strs.add("cat");
+        strs.add("dog");
+
+        Iterator<Document> iterator = invertlist.searchOrQuery(strs);
+        while (iterator.hasNext()) {
+            String text = iterator.next().getText();
+            if(text.contains("dog") || text.contains("cat")){
+                flag.add(true);
+            }
+            else flag.add(false);
+        }
+
+
+
+        assertEquals(Arrays.asList(true,true,true,true),flag );
         flag.clear();
 
     }
@@ -67,9 +96,9 @@ public class Team5OrSearchTest {
 
     @After
     public void deletetmp() throws Exception{
-        docs.clear();
+        documentStore.close();
         invertlist.flush();
-
+        Files.deleteIfExists(Paths.get("./test.db"));
 
     }
     //todo test if the query find all matched docs
