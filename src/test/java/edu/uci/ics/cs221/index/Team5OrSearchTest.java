@@ -1,15 +1,14 @@
 package edu.uci.ics.cs221.index;
 
-import edu.uci.ics.cs221.analysis.Analyzer;
-import edu.uci.ics.cs221.analysis.ComposableAnalyzer;
-import edu.uci.ics.cs221.analysis.PorterStemmer;
-import edu.uci.ics.cs221.analysis.WordBreakTokenizer;
+import edu.uci.ics.cs221.analysis.*;
 import edu.uci.ics.cs221.index.inverted.InvertedIndexManager;
+import edu.uci.ics.cs221.index.inverted.PageFileChannel;
 import edu.uci.ics.cs221.storage.Document;
 import edu.uci.ics.cs221.storage.DocumentStore;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import sun.security.krb5.internal.PAForUserEnc;
 
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -24,46 +23,44 @@ import static org.junit.Assert.*;
 public class Team5OrSearchTest {
     private InvertedIndexManager invertlist;
     private DocumentStore documentStore=createOrOpen("./test.db");
+    private Analyzer analyzer = new ComposableAnalyzer(new PunctuationTokenizer(), new PorterStemmer());
 
     @Before
     public void setUp() throws Exception {
-        Analyzer analyzer = new ComposableAnalyzer(new WordBreakTokenizer(), new PorterStemmer());
-        invertlist = InvertedIndexManager.createOrOpen("src/test/java/edu/uci/ics/cs221/index/Team5OrSearchTest", analyzer);
+
+        invertlist = InvertedIndexManager.createOrOpen("src/test/java/edu/uci/ics/cs221/index/", analyzer);
         documentStore.addDocument(0,new Document("cat dog toy"));
         documentStore.addDocument(1,new Document("cat Dot"));
         documentStore.addDocument(2,new Document("cat dot toy"));
         documentStore.addDocument(3,new Document("cat toy Dog"));
-        documentStore.addDocument(4,new Document(""));
-        documentStore.addDocument(5,new Document("cat Dog"));
+        documentStore.addDocument(4,new Document("toy dog cat"));
+        documentStore.addDocument(5,new Document("cat Dog"));//docs cannot be null
 
-
-        //todo add more docs
+        for(int i=0;i<documentStore.size();i++){
+            invertlist.addDocument(documentStore.getDocument(i));
+            invertlist.flush();
+        }
     }
 
 
     //test if query find correct answer
     @Test
     public void Test1() throws Exception {
-
-
         List<String> strs = new ArrayList<>();
-        List<Boolean> flag = new ArrayList<>();
         strs.add("cat");
         strs.add("dog");
 
         Iterator<Document> iterator = invertlist.searchOrQuery(strs);
+        int counter=0;
         while (iterator.hasNext()) {
             String text = iterator.next().getText();
-            if(text.contains("dog") || text.contains("cat")){
-                flag.add(true);
-            }
-            else flag.add(false);
+            assertEquals(true,text.contains("dog") || text.contains("cat"));
+            counter++;
+
         }
-
-
-
-        assertEquals(Arrays.asList(true,true,true,true),flag );
-        flag.clear();
+        assertEquals(6,counter);
+        assertTrue(PageFileChannel.readCounter>=20&&PageFileChannel.writeCounter>=20);
+        strs.clear();
 
     }
 
@@ -73,23 +70,40 @@ public class Team5OrSearchTest {
 
 
         List<String> strs = new ArrayList<>();
-        List<Boolean> flag = new ArrayList<>();
-        strs.add("cat");
         strs.add("dog");
 
         Iterator<Document> iterator = invertlist.searchOrQuery(strs);
+        int counter=0;
         while (iterator.hasNext()) {
             String text = iterator.next().getText();
-            if(text.contains("dog") || text.contains("cat")){
-                flag.add(true);
-            }
-            else flag.add(false);
+            assertEquals(true,text.contains("dog"));
+            counter++;
+
         }
+        assertEquals(4,counter);
+        assertTrue(PageFileChannel.readCounter>=20&&PageFileChannel.writeCounter>=20);
+        strs.clear();
+
+    }
 
 
+    @Test
+    public void Test3() throws Exception {
 
-        assertEquals(Arrays.asList(true,true,true,true),flag );
-        flag.clear();
+
+        List<String> strs = new ArrayList<>();
+        strs.add("sdasjdlslsah");
+        Iterator<Document> iterator = invertlist.searchOrQuery(strs);
+        int counter=0;
+        while (iterator.hasNext()) {
+            String text = iterator.next().getText();
+            assertEquals(true,text.contains("sdasjdlslsah"));
+            counter++;
+
+        }
+        assertEquals(0,counter);
+        assertTrue(PageFileChannel.readCounter>=20&&PageFileChannel.writeCounter>=20);
+        strs.clear();
 
     }
 
@@ -98,9 +112,10 @@ public class Team5OrSearchTest {
     public void deletetmp() throws Exception{
         if(documentStore!=null) documentStore.close();
         Files.deleteIfExists(Paths.get("./test.db"));
+        invertlist.deleteDocuments("cat");
 
     }
-   
+
 
 
 }
