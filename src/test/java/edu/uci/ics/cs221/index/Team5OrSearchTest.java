@@ -1,5 +1,4 @@
 package edu.uci.ics.cs221.index;
-
 import edu.uci.ics.cs221.analysis.*;
 import edu.uci.ics.cs221.index.inverted.InvertedIndexManager;
 import edu.uci.ics.cs221.index.inverted.PageFileChannel;
@@ -8,13 +7,9 @@ import edu.uci.ics.cs221.storage.DocumentStore;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-import sun.security.krb5.internal.PAForUserEnc;
-
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.sql.Array;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import static edu.uci.ics.cs221.storage.MapdbDocStore.createOrOpen;
@@ -27,7 +22,6 @@ public class Team5OrSearchTest {
 
     @Before
     public void setUp() throws Exception {
-
         invertlist = InvertedIndexManager.createOrOpen("src/test/java/edu/uci/ics/cs221/index/", analyzer);
         documentStore.addDocument(0,new Document("cat dog toy"));
         documentStore.addDocument(1,new Document("cat Dot"));
@@ -42,8 +36,6 @@ public class Team5OrSearchTest {
         }
     }
 
-
-    //test if query find correct answer
     @Test
     public void Test1() throws Exception {
         List<String> strs = new ArrayList<>();
@@ -63,12 +55,9 @@ public class Team5OrSearchTest {
         strs.clear();
 
     }
-
-
+//test if multiple keywords work or not
     @Test
     public void Test2() throws Exception {
-
-
         List<String> strs = new ArrayList<>();
         strs.add("dog");
 
@@ -85,17 +74,15 @@ public class Team5OrSearchTest {
         strs.clear();
 
     }
-
-
+//test if single key words works or not
     @Test
     public void Test3() throws Exception {
-
-
         List<String> strs = new ArrayList<>();
         strs.add("sdasjdlslsah");
         Iterator<Document> iterator = invertlist.searchOrQuery(strs);
         int counter=0;
         while (iterator.hasNext()) {
+
             String text = iterator.next().getText();
             assertEquals(true,text.contains("sdasjdlslsah"));
             counter++;
@@ -107,7 +94,28 @@ public class Team5OrSearchTest {
 
     }
 
+//test the case that the key word does not match any file
+    @Test
+    public void Test4() throws Exception {
+        List<String> strs = new ArrayList<>();
+        strs.add("toy");
+        strs.add("dog");
+        Iterator<Document> iterator = invertlist.searchOrQuery(strs);
+        int counter=0;
+        while (iterator.hasNext()) {
 
+            String text = iterator.next().getText();
+            assertEquals(true,text.contains("dog")||text.contains("toy"));
+            counter++;
+
+        }
+        assertEquals(5,counter);
+        assertTrue(PageFileChannel.readCounter>=20&&PageFileChannel.writeCounter>=20);
+        strs.clear();
+
+    }
+
+//test or operation works or not
     @After
     public void deletetmp() throws Exception{
         if(documentStore!=null) documentStore.close();
