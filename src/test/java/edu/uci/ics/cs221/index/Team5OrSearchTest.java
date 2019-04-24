@@ -96,12 +96,11 @@ public class Team5OrSearchTest {
 
     @After
     public void deletetmp() throws Exception{
-        documentStore.close();
-        invertlist.flush();
+        if(documentStore!=null) documentStore.close();
         Files.deleteIfExists(Paths.get("./test.db"));
 
     }
-    //todo test if the query find all matched docs
+   
 
 
 }
