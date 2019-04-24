@@ -125,6 +125,7 @@ public class Team5OrSearchTest {
 
     @After
     public void deleteTmp() throws Exception {
+        //invertedList.deleteDocuments("cat");
         if (documentStore != null) documentStore.close();
         PageFileChannel.resetCounters();
         Files.deleteIfExists(Paths.get(path+"/test.db"));
