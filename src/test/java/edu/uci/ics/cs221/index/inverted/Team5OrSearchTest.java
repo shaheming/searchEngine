@@ -64,7 +64,7 @@ public class Team5OrSearchTest {
 
     }
 
-    //test if single key words works or not    
+    //test if single wordkey words works or not
     @Test
     public void Test2() throws Exception {
         List<String> words = new ArrayList<>();
@@ -84,7 +84,7 @@ public class Team5OrSearchTest {
 
     }
 
-    //test the case that the key word does not match any file
+    //test the case that the wordkey word does not match any file
     @Test
     public void Test3() throws Exception {
         List<String> words = new ArrayList<>();

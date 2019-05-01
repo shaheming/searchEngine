@@ -6,14 +6,18 @@ import edu.uci.ics.cs221.search.FullScanSearcher;
 import edu.uci.ics.cs221.storage.Document;
 import edu.uci.ics.cs221.storage.DocumentStore;
 
+import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.List;
 
 import static edu.uci.ics.cs221.storage.MapdbDocStore.createOrOpen;
-import  edu.uci.ics.cs221.analysis.StopWords;
 
-/**s
+
+/**
+ * s
  * This is a Hello World program of our CS221 Peterman Search Engine.
  * It shows how to use the skeleton API of the search engine:
  * 1. use the provided DocumentStore to add and save documents
@@ -22,6 +26,7 @@ import  edu.uci.ics.cs221.analysis.StopWords;
  * Over this quarter, you will be implementing various analyzers, indexes, query types, and ranking
  * to make the search engine more efficient, powerful, and user-friendly :)
  */
+
 public class HelloWorld {
 
     public static void main(String[] args) throws Exception {
@@ -53,7 +58,30 @@ public class HelloWorld {
         }
 
         fullScanSearcher.close();
-
+        ByteBuffer buffer = ByteBuffer.allocate(16);
+        buffer.putInt(10089);
+        buffer.putInt(10090);
+//        buffer.put((byte) 'a');
+//        buffer.put((byte) 'a');
+        buffer.putInt(10091);
+        buffer.putInt(10092);
+        buffer.rewind();
+        System.out.println(buffer.getInt());
+        System.out.println(buffer.getInt());
+        System.out.println(buffer.getInt(8));
+        System.out.println(buffer.getInt(12));
+//        System.out.println((char) buffer.get());
+//        System.out.println((char) buffer.get());
+        System.out.println(Arrays.toString(buffer.array()));
+        buffer.rewind();
+        String text = "aaccdd";
+        byte[] array = text.getBytes("ASCII");
+        String s = new String(array, Charset.forName("ASCII"));
+        System.out.println(s);
+        System.out.println(Arrays.toString(array));
+        buffer.rewind();
+        buffer.put(array, 0, 6);
+        System.out.println(Arrays.toString(buffer.array()));
     }
 
 }

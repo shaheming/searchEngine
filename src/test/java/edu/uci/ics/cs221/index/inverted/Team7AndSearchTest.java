@@ -85,7 +85,7 @@ public class Team7AndSearchTest {
 
     @Test
     /**
-     * Test when the input search key words are not in the inverted index
+     * Test when the input search wordkey words are not in the inverted index
      */
     public void wrongAndWrong(){
         List<String> input = Arrays.asList("g","g");

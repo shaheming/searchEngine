@@ -10,6 +10,7 @@ import java.io.InputStreamReader;
 import java.net.URL;
 import java.util.*;
 
+import static java.lang.System.exit;
 import static org.junit.Assert.assertEquals;
 
 public class Team2StressTest {
@@ -29,13 +30,11 @@ public class Team2StressTest {
         invertedIndexManager = InvertedIndexManager.createOrOpen("./index/Team2StressTest/", analyzer);
         InvertedIndexManager.DEFAULT_FLUSH_THRESHOLD = 200;
         InvertedIndexManager.DEFAULT_MERGE_THRESHOLD = 6;
-
         String text = "";
         try {
             URL url = new URL("https://grape.ics.uci.edu/wiki/public/raw-attachment/wiki/cs221-2019-spring-project2/Team2StressTest.txt");
             BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(url.openStream()));
             StringBuilder stringBuilder = new StringBuilder();
-
             String inputLine;
             while ((inputLine = bufferedReader.readLine()) != null)
             {
@@ -49,6 +48,7 @@ public class Team2StressTest {
             e.printStackTrace();
         }
 
+        exit(0);
         // copy full pride-and-prejudice for around 1500 times, every document is about 708KB, 1500 times is about 1GB
         for (int i = 0; i < 1500; i++) {
             invertedIndexManager.addDocument(new Document(text));

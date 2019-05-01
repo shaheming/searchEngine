@@ -66,7 +66,7 @@ public class Team12MergeTest {
         iim.addDocument(new Document("you'll be implementing a disk-based inverted index and the search operations."));
         iim.addDocument(new Document("At a high level, inverted index stores a mapping from keywords to the ids of documents they appear in."));
         iim.addDocument(new Document("A simple in-memory structure could be"));
-        iim.addDocument(new Document("where each key is a keyword token"));
+        iim.addDocument(new Document("where each wordkey is a keyword token"));
         iim.addDocument(new Document("and each value is a list of document IDs"));
         iim.addDocument(new Document("In this project, the disk-based index structure is based on the idea of LSM"));
         iim.addDocument(new Document("Its main idea is the following"));

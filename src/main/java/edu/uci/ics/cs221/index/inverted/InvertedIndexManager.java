@@ -9,12 +9,12 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
+
 
 /**
  * This class manages an disk-based inverted index and all the documents in the inverted index.
- *
+ * <p>
  * Please refer to the project 2 wiki page for implementation guidelines.
  */
 public class InvertedIndexManager {
@@ -22,21 +22,37 @@ public class InvertedIndexManager {
     /**
      * The default flush threshold, in terms of number of documents.
      * For example, a new Segment should be automatically created whenever there's 1000 documents in the buffer.
-     *
+     * <p>
      * In test cases, the default flush threshold could possibly be set to any number.
      */
     public static int DEFAULT_FLUSH_THRESHOLD = 1000;
-
     /**
      * The default merge threshold, in terms of number of segments in the inverted index.
      * When the number of segments reaches the threshold, a merge should be automatically triggered.
-     *
+     * <p>
      * In test cases, the default merge threshold could possibly be set to any number.
      */
     public static int DEFAULT_MERGE_THRESHOLD = 8;
 
+    /**
+     * Key => segmentName, val => segmentHeaderSize
+     * segmentMetaData.txt:
+     * segments X
+     * No., fileName, fileHeaderSize
+     * 0    xxxx     xxxx
+     */
+    private Analyzer analyzer;
+    private InvertedIndex currInvertIndex;
+    private Map<String, Integer> segmentMetaData = new HashMap<String, Integer>();
 
+    //todo 1. create invert list folder
+    //todo 2. in folder should have tow folder? doc and invertlist
+    //todo 3. should create  a metadate file contain the invertlistName and header size
+    //todo 4. wordkey the metadate in memory used to do search
+    //todo 5. the invert list is sorted by time and use a indexArray to map No. seg to seg name then to the segmentMetaData
     private InvertedIndexManager(String indexFolder, Analyzer analyzer) {
+        this.analyzer = analyzer;
+        this.currInvertIndex = new InvertedIndex(indexFolder);
     }
 
     /**
@@ -63,15 +79,22 @@ public class InvertedIndexManager {
     /**
      * Adds a document to the inverted index.
      * Document should live in a in-memory buffer until `flush()` is called to write the segment to disk.
+     *
      * @param document
      */
     public void addDocument(Document document) {
-        throw new UnsupportedOperationException();
+        if (this.currInvertIndex.getDocNum() >= DEFAULT_FLUSH_THRESHOLD)
+            this.flush();
+        this.currInvertIndex.addDocument(document, new HashSet<String>(this.analyzer.analyze(document.getText())));
     }
 
     /**
      * Flushes all the documents in the in-memory segment buffer to disk. If the buffer is empty, it should not do anything.
      * flush() writes the segment to disk containing the posting list and the corresponding document store.
+     * calculate the metadate of the of the invertList
+     * create a new invertList
+     * todo when we call this method we can create a thread to flush index
+     *  the main thread can continue to add document
      */
     public void flush() {
         throw new UnsupportedOperationException();
@@ -133,6 +156,7 @@ public class InvertedIndexManager {
 
     /**
      * Deletes all documents in all disk segments of the inverted index that match the query.
+     *
      * @param keyword
      */
     public void deleteDocuments(String keyword) {
@@ -159,6 +183,5 @@ public class InvertedIndexManager {
     public InvertedIndexSegmentForTest getIndexSegment(int segmentNum) {
         throw new UnsupportedOperationException();
     }
-
 
 }
