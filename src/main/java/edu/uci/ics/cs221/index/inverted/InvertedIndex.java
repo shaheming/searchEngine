@@ -5,7 +5,6 @@ import edu.uci.ics.cs221.storage.DocumentStore;
 import edu.uci.ics.cs221.storage.MapdbDocStore;
 
 import java.io.File;
-import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -56,8 +55,6 @@ class MyByteBuffer {
 
     private void checkFill() {
         if (buffer.position() >= this.limit) {
-            System.out.println("in new page");
-            Arrays.toString(buffer1.array());
             ByteBuffer bufferOld = buffer;
             if (buffer == buffer1) {
                 buffer = buffer2;
@@ -93,6 +90,7 @@ class MyByteBuffer {
         this.buffer.flip();
         this.fileChannel.appendPage(buffer.slice());
         this.buffer.clear();
+
     }
 }
 
@@ -253,35 +251,6 @@ public class InvertedIndex {
         this.mybuffer = new MyByteBuffer(this.fileChannel);
     }
 
-    private boolean createOrOpen(boolean isReadOnly) {
-        try {
-            if (isReadOnly) {
-//                this.docStore = MapdbDocStore.createOrOpenReadOnly(this.docStorePath);
-                this.fileChannel = PageFileChannel.createOrOpen(Paths.get(this.invertListPath));
-            } else {
-//                this.docStore = MapdbDocStore.createOrOpen(this.docStorePath);
-                this.fileChannel = PageFileChannel.createOrOpen(Paths.get(this.invertListPath));
-            }
-        } catch (UncheckedIOException e) {
-            throw e;
-        }
-        return true;
-    }
-
-
-//    public boolean readHeader(Integer headerLen) {
-//        try {
-//            ByteBuffer buffer = this.fileChannel.readPage((headerLen + PageFileChannel.PAGE_SIZE - 1) / PageFileChannel.PAGE_SIZE);
-////            this.fileChannel.read(buffer, headerLen);
-//            this.headerLen = headerLen;
-//            buffer.position(headerLen);
-//            buffer.flip();
-//        } catch (UncheckedIOException e) {
-//            throw e;
-//        }
-//        return true;
-//    }
-
     private void calHeaderLen() {
         this.headerLen = this.invertList.size() * (InvertedIndexHeaderEntry.InvertedIndexHeaderEntrySize);
     }
@@ -313,11 +282,13 @@ public class InvertedIndex {
             }
         }
         mybuffer.flush();
+        System.out.println("Write segment: " + this.segmentName);
         return true;
 
     }
 
-    //merge two invertList
+    //todo cal doc size
+    //todo merge second to the first
     public boolean merge(InvertedIndex inv) {
         throw new UnsupportedOperationException();
 //      return false;

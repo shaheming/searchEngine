@@ -14,6 +14,24 @@ import java.nio.file.Paths;
 import java.util.*;
 
 
+class SegmentEntry {
+    private String name;
+    private Integer headerLen;
+
+    public String getName() {
+        return name;
+    }
+
+    public Integer getHeaderLen() {
+        return headerLen;
+    }
+
+    public SegmentEntry(String name, Integer headerLen) {
+        this.name = name;
+        this.headerLen = headerLen;
+    }
+}
+
 /**
  * This class manages an disk-based inverted index and all the documents in the inverted index.
  * <p>
@@ -45,12 +63,9 @@ public class InvertedIndexManager {
      */
     private Analyzer analyzer;
     private InvertedIndex currInvertIndex;
-    private Map<String, Integer> segmentMetaData = new HashMap<String, Integer>();
+    private ArrayList<SegmentEntry> segmentMetaData = new ArrayList<>();
     private String workPath;
 
-    //todo 1. create invert list folder
-    //todo 2. in folder should have tow folder? doc and invertlist
-    //todo 3. should create  a metadate file contain the invertlistName and header size
     //todo 4. key the metadate in memory used to do search
     //todo 5. the invert list is sorted by time and use a indexArray to map No. seg to seg name then to the segmentMetaData
     private InvertedIndexManager(String indexFolder, Analyzer analyzer) {
@@ -64,7 +79,7 @@ public class InvertedIndexManager {
             List<String> lines = Files.readAllLines(Paths.get(this.workPath + "/metadata.txt"));
             for (String line : lines.subList(1, lines.size())) {
                 String[] cols = line.split("\\s");
-                segmentMetaData.put(cols[0], Integer.valueOf(cols[1]));
+                this.segmentMetaData.add(new SegmentEntry(cols[0], Integer.valueOf(cols[1])));
                 System.out.println(cols[0] + " " + Integer.valueOf(cols[1]));
             }
         } catch (IOException e) {
@@ -76,8 +91,8 @@ public class InvertedIndexManager {
         try {
             BufferedWriter writer = new BufferedWriter(new FileWriter(this.workPath + "/metadata.txt"));
             writer.write(this.segmentMetaData.size() + "\n");
-            for (Map.Entry<String, Integer> entry : this.segmentMetaData.entrySet()) {
-                writer.write(entry.getKey() + " " + entry.getValue() + "\n");
+            for (SegmentEntry entry : this.segmentMetaData) {
+                writer.write(entry.getName() + " " + entry.getHeaderLen() + "\n");
             }
             writer.close();
         } catch (IOException e) {
@@ -130,7 +145,8 @@ public class InvertedIndexManager {
 
         InvertedIndex oldInvertList = this.currInvertIndex;
         oldInvertList.flush();
-        this.segmentMetaData.put(this.currInvertIndex.getSegmentName(), this.currInvertIndex.getHeaderLen());
+
+        this.segmentMetaData.add(new SegmentEntry(this.currInvertIndex.getSegmentName(), this.currInvertIndex.getHeaderLen()));
         this.writeIndexMetaData();
         this.currInvertIndex = new InvertedIndex(oldInvertList.getBasePath());
     }
