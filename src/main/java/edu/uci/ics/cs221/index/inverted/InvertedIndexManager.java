@@ -14,7 +14,7 @@ import java.util.List;
 
 /**
  * This class manages an disk-based inverted index and all the documents in the inverted index.
- * <p>
+ *
  * Please refer to the project 2 wiki page for implementation guidelines.
  */
 public class InvertedIndexManager {
@@ -22,7 +22,7 @@ public class InvertedIndexManager {
     /**
      * The default flush threshold, in terms of number of documents.
      * For example, a new Segment should be automatically created whenever there's 1000 documents in the buffer.
-     * <p>
+     *
      * In test cases, the default flush threshold could possibly be set to any number.
      */
     public static int DEFAULT_FLUSH_THRESHOLD = 1000;
@@ -30,7 +30,7 @@ public class InvertedIndexManager {
     /**
      * The default merge threshold, in terms of number of segments in the inverted index.
      * When the number of segments reaches the threshold, a merge should be automatically triggered.
-     * <p>
+     *
      * In test cases, the default merge threshold could possibly be set to any number.
      */
     public static int DEFAULT_MERGE_THRESHOLD = 8;
@@ -63,7 +63,6 @@ public class InvertedIndexManager {
     /**
      * Adds a document to the inverted index.
      * Document should live in a in-memory buffer until `flush()` is called to write the segment to disk.
-     *
      * @param document
      */
     public void addDocument(Document document) {
@@ -137,7 +136,6 @@ public class InvertedIndexManager {
 
     /**
      * Deletes all documents in all disk segments of the inverted index that match the query.
-     *
      * @param keyword
      */
     public void deleteDocuments(String keyword) {

@@ -5,43 +5,46 @@ import edu.uci.ics.cs221.analysis.ComposableAnalyzer;
 import edu.uci.ics.cs221.analysis.PorterStemmer;
 import edu.uci.ics.cs221.analysis.PunctuationTokenizer;
 import edu.uci.ics.cs221.storage.Document;
-import edu.uci.ics.cs221.storage.DocumentStore;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.nio.file.Files;
-import java.nio.file.Paths;
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
-import static edu.uci.ics.cs221.storage.MapdbDocStore.createOrOpen;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 public class Team5OrSearchTest {
-    private String path="src/test/java/edu/uci/ics/cs221/index";
-    private DocumentStore documentStore = createOrOpen(path+"/test.db");
+    private String path = "./index/Team5OrSearchTest";
     private Analyzer analyzer = new ComposableAnalyzer(new PunctuationTokenizer(), new PorterStemmer());
-    private InvertedIndexManager invertedList = InvertedIndexManager.createOrOpen(path, analyzer);
+    private InvertedIndexManager invertedList;
 
     @Before
     public void setUp() throws Exception {
-        documentStore.addDocument(0, new Document("cat dog toy"));
-        documentStore.addDocument(1, new Document("cat Dot"));
-        documentStore.addDocument(2, new Document("cat dot toy"));
-        documentStore.addDocument(3, new Document("cat toy Dog"));
-        documentStore.addDocument(4, new Document("toy dog cat"));
-        documentStore.addDocument(5, new Document("cat Dog"));//docs cannot be null
-
-        for (int i = 0; i < documentStore.size(); i++) {
-            invertedList.addDocument(documentStore.getDocument(i));
-            invertedList.flush();
+        File directory = new File(path);
+        if (!directory.exists()) {
+            directory.mkdirs();
         }
+        invertedList = InvertedIndexManager.createOrOpen(path, analyzer);
+        invertedList.addDocument(new Document("cat dog toy"));
+        invertedList.flush();
+        invertedList.addDocument(new Document("cat Dot"));
+        invertedList.flush();
+        invertedList.addDocument(new Document("cat dot toy"));
+        invertedList.flush();
+        invertedList.addDocument(new Document("cat toy Dog"));
+        invertedList.flush();
+        invertedList.addDocument(new Document("toy dog cat"));
+        invertedList.flush();
+        invertedList.addDocument(new Document("cat Dog"));//docs cannot be null
+        invertedList.flush();
     }
 
-    //test if multiple keywords work or not
+    // test if multiple keywords work or not. And we set 5 as a threshold for write counter and read counter,
+    // because I think the number will increase when we call the flush() function and we dont know the execution order
+    // of test cases, so we set them all to 5.
     @Test
     public void Test1() throws Exception {
         List<String> words = new ArrayList<>();
@@ -56,7 +59,7 @@ public class Team5OrSearchTest {
             counter++;
         }
         assertEquals(6, counter);
-        assertTrue(PageFileChannel.readCounter >= 20 && PageFileChannel.writeCounter >= 20);
+        assertTrue(PageFileChannel.readCounter >= 5 && PageFileChannel.writeCounter >= 5);
         words.clear();
 
     }
@@ -71,12 +74,12 @@ public class Team5OrSearchTest {
         int counter = 0;
         while (iterator.hasNext()) {
             String text = iterator.next().getText();
-            assertEquals(true, text.contains("dog"));
+            assertEquals(true, text.toLowerCase().contains("dog"));
             counter++;
 
         }
         assertEquals(4, counter);
-        assertTrue(PageFileChannel.readCounter >= 20 && PageFileChannel.writeCounter >= 20);
+        assertTrue(PageFileChannel.readCounter >= 5 && PageFileChannel.writeCounter >= 5);
         words.clear();
 
     }
@@ -86,22 +89,23 @@ public class Team5OrSearchTest {
     public void Test3() throws Exception {
         List<String> words = new ArrayList<>();
         words.add("sdasjdlslsah");
+        words.add("*7&");
         Iterator<Document> iterator = invertedList.searchOrQuery(words);
         int counter = 0;
         while (iterator.hasNext()) {
 
             String text = iterator.next().getText();
-            assertEquals(true, text.contains("sdasjdlslsah"));
+            assertEquals(true, text.contains("sdasjdlslsah") || text.contains("*7&"));
             counter++;
 
         }
         assertEquals(0, counter);
-        assertTrue(PageFileChannel.readCounter >= 20 && PageFileChannel.writeCounter >= 20);
+        assertTrue(PageFileChannel.readCounter >= 5 && PageFileChannel.writeCounter >= 5);
         words.clear();
 
     }
 
-    //test or operation works or not
+    //test other words combination
     @Test
     public void Test4() throws Exception {
         List<String> words = new ArrayList<>();
@@ -112,23 +116,35 @@ public class Team5OrSearchTest {
         while (iterator.hasNext()) {
 
             String text = iterator.next().getText();
-            assertEquals(true, text.contains("dog") || text.contains("toy"));
+            assertEquals(true,
+                    text.toLowerCase().contains("dog") || text.toLowerCase().contains("toy"));
             counter++;
 
         }
         assertEquals(5, counter);
-        assertTrue(PageFileChannel.readCounter >= 20 && PageFileChannel.writeCounter >= 20);
+        assertTrue(PageFileChannel.readCounter >= 5 && PageFileChannel.writeCounter >= 5);
         words.clear();
 
     }
 
+    //test empty query list.
+    @Test
+    public void Test5() {
+        List<String> words = new ArrayList<>();
+        Iterator<Document> iterator = invertedList.searchOrQuery(words);
+        assertFalse(iterator.hasNext());
+    }
 
     @After
+
     public void deleteTmp() throws Exception {
-        //invertedList.deleteDocuments("cat");
-        if (documentStore != null) documentStore.close();
         PageFileChannel.resetCounters();
-        Files.deleteIfExists(Paths.get(path+"/test.db"));
+        File f = new File(path);
+        File[] files = f.listFiles();
+        for (File file : files) {
+            file.delete();
+        }
+        f.delete();
     }
 
 }
