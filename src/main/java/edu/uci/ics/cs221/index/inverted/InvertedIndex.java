@@ -19,7 +19,7 @@ class WritePageBuffer {
   private ByteBuffer buffer = buffer1;
   private PageFileChannel fileChannel;
 
-  public WritePageBuffer(PageFileChannel fileChannel) {
+  WritePageBuffer(PageFileChannel fileChannel) {
     this.fileChannel = fileChannel;
   }
 
@@ -63,8 +63,7 @@ class WritePageBuffer {
 
       bufferOld.limit(bufferOld.position());
       bufferOld.position(limit);
-      Integer n = bufferOld.remaining();
-      if (n > 0) buffer.put(bufferOld);
+      if (bufferOld.remaining() > 0) buffer.put(bufferOld);
       //            System.out.println(Arrays.toString(buffer1.array()));
       //            System.out.println(Arrays.toString(buffer2.array()));
       bufferOld.clear();
@@ -95,10 +94,10 @@ class InvertedIndexHeaderEntry {
   private String key;
   private Integer size;
   private Integer ptr;
-  public static Integer keyByteSize = 20;
-  public static Integer ptrByteSize = 4;
-  public static Integer listByteSize = 4;
-  public static Integer InvertedIndexHeaderEntrySize = keyByteSize + ptrByteSize + listByteSize;
+  static Integer keyByteSize = 20;
+  static Integer ptrByteSize = 4;
+  static Integer listByteSize = 4;
+  static Integer InvertedIndexHeaderEntrySize = keyByteSize + ptrByteSize + listByteSize;
 
   public InvertedIndexHeaderEntry(String key, Integer size, Integer ptr) {
     this.key = key;
@@ -106,7 +105,7 @@ class InvertedIndexHeaderEntry {
     this.ptr = ptr;
   }
 
-  public InvertedIndexHeaderEntry() {}
+  InvertedIndexHeaderEntry() {}
 
   public void setKey(String key) {
     this.key = key;
@@ -116,7 +115,7 @@ class InvertedIndexHeaderEntry {
     this.size = size;
   }
 
-  public void setPtr(Integer ptr) {
+  void setPtr(Integer ptr) {
     this.ptr = ptr;
   }
 
@@ -128,11 +127,11 @@ class InvertedIndexHeaderEntry {
     return size;
   }
 
-  public Integer getPtr() {
+  Integer getPtr() {
     return ptr;
   }
 
-  public InvertedIndexHeaderEntry(ByteBuffer buffer) {
+  InvertedIndexHeaderEntry(ByteBuffer buffer) {
     char[] strArray = new char[20];
     for (int i = 0; i < InvertedIndexHeaderEntry.keyByteSize; i++) {
       char c = (char) buffer.get();
@@ -152,11 +151,11 @@ class InvertedIndexHeaderEntry {
     this.print();
   }
 
-  public void print() {
+  void print() {
     System.out.println(this.key + " " + this.size + " " + this.ptr);
   }
 
-  public void writeToMyByteBuffer(WritePageBuffer buffer) {
+  void writeToMyByteBuffer(WritePageBuffer buffer) {
 
     for (int i = 0; i < this.key.length(); i++) {
       buffer.put((byte) this.key.charAt(i));
@@ -170,22 +169,27 @@ class InvertedIndexHeaderEntry {
 }
 
 public class InvertedIndex {
-  protected Integer docNum = 0;
-  protected Map<String, ArrayList<Integer>> invertList = new TreeMap<String, ArrayList<Integer>>();
-  protected String invertListPath;
-  protected String invertListDir;
-  protected String docStorePath;
-  protected String docStoreDir;
-  protected Integer headerLen = 0; // Byte
-  protected DocumentStore docStore;
+  private Integer docNum = 0;
+  private Map<String, ArrayList<Integer>> invertList = new TreeMap<String, ArrayList<Integer>>();
+  private String invertListPath;
+  private String invertListDir;
+  private String docStorePath;
+  private String docStoreDir;
+  private Integer headerLen = 0; // Byte
+  private DocumentStore docStore;
   protected Map<Integer, Document> documents = new HashMap<>();
-  protected PageFileChannel fileChannel;
-  protected String basePath;
+  private PageFileChannel fileChannel;
+  private String basePath;
   private String segmentName;
-  protected Integer headerNum = 0;
+  private Integer headerNum = 0;
   private WritePageBuffer writeBuffer;
-  protected ArrayList<InvertedIndexHeaderEntry> wordsDicEntries = new ArrayList<>();
+  private Map<String, InvertedIndexHeaderEntry> wordsDicEntries1 = new TreeMap<>();
+  private ArrayList<InvertedIndexHeaderEntry> wordsDicEntries = new ArrayList<>();
   private ArrayList<Integer> removedDocIds = new ArrayList<>();
+
+  public void setRemovedDocIds(ArrayList<Integer> removedList) {
+    this.removedDocIds.addAll(removedList);
+  }
 
   private void InitFilePath(String dir, String name) {
     this.basePath = dir;
@@ -292,7 +296,7 @@ public class InvertedIndex {
     }
   }
 
-  public static Integer copyDocToRemoveDelete(
+  private static Integer copyDocToRemoveDelete(
       InvertedIndex src, InvertedIndex des, Deque<Integer> removedDq) {
     Iterator<Map.Entry<Integer, Document>> it = src.docIterator();
     int counter = 0;
@@ -418,9 +422,7 @@ public class InvertedIndex {
   // todo fix two many doc problem
   public void addDocument(Document document, Set<String> tokens) {
     this.documents.put(this.docNum, document);
-    Iterator<String> it = tokens.iterator();
-    while (it.hasNext()) {
-      String key = it.next();
+    for (String key : tokens) {
       if (this.invertList.containsKey(key)) {
         invertList.get(key).add(this.docNum);
       } else {
