@@ -4,6 +4,8 @@ import com.google.common.base.Preconditions;
 import edu.uci.ics.cs221.analysis.Analyzer;
 import edu.uci.ics.cs221.storage.Document;
 
+import java.io.BufferedWriter;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -44,15 +46,43 @@ public class InvertedIndexManager {
     private Analyzer analyzer;
     private InvertedIndex currInvertIndex;
     private Map<String, Integer> segmentMetaData = new HashMap<String, Integer>();
+    private String workPath;
 
     //todo 1. create invert list folder
     //todo 2. in folder should have tow folder? doc and invertlist
     //todo 3. should create  a metadate file contain the invertlistName and header size
-    //todo 4. wordkey the metadate in memory used to do search
+    //todo 4. key the metadate in memory used to do search
     //todo 5. the invert list is sorted by time and use a indexArray to map No. seg to seg name then to the segmentMetaData
     private InvertedIndexManager(String indexFolder, Analyzer analyzer) {
         this.analyzer = analyzer;
         this.currInvertIndex = new InvertedIndex(indexFolder);
+        this.workPath = indexFolder;
+    }
+
+    private void readIndexMetaData() {
+        try {
+            List<String> lines = Files.readAllLines(Paths.get(this.workPath + "/metadata.txt"));
+            for (String line : lines.subList(1, lines.size())) {
+                String[] cols = line.split("\\s");
+                segmentMetaData.put(cols[0], Integer.valueOf(cols[1]));
+                System.out.println(cols[0] + " " + Integer.valueOf(cols[1]));
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private void writeIndexMetaData() {
+        try {
+            BufferedWriter writer = new BufferedWriter(new FileWriter(this.workPath + "/metadata.txt"));
+            writer.write(this.segmentMetaData.size() + "\n");
+            for (Map.Entry<String, Integer> entry : this.segmentMetaData.entrySet()) {
+                writer.write(entry.getKey() + " " + entry.getValue() + "\n");
+            }
+            writer.close();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     /**
@@ -94,10 +124,15 @@ public class InvertedIndexManager {
      * calculate the metadate of the of the invertList
      * create a new invertList
      * todo when we call this method we can create a thread to flush index
-     *  the main thread can continue to add document
+     * the main thread can continue to add document
      */
     public void flush() {
-        throw new UnsupportedOperationException();
+
+        InvertedIndex oldInvertList = this.currInvertIndex;
+        oldInvertList.flush();
+        this.segmentMetaData.put(this.currInvertIndex.getSegmentName(), this.currInvertIndex.getHeaderLen());
+        this.writeIndexMetaData();
+        this.currInvertIndex = new InvertedIndex(oldInvertList.getBasePath());
     }
 
     /**
@@ -170,7 +205,7 @@ public class InvertedIndexManager {
      * @return number of index segments.
      */
     public int getNumSegments() {
-        throw new UnsupportedOperationException();
+        return this.segmentMetaData.size();
     }
 
     /**

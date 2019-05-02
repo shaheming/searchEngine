@@ -41,7 +41,7 @@ public class MapdbDocStore implements DocumentStore {
 
     /**
      * Creates a Document Store and bulk load all documents in the iterator.
-     * The documents in the iterator *MUST* be *sorted* by wordkey.
+     * The documents in the iterator *MUST* be *sorted* by key.
      * For example, you could use an iterator from any `SortedMap`, such as `TreeMap` in java.
      *
      * It is *highly recommended* to use this constructor in order to pass stress tests,

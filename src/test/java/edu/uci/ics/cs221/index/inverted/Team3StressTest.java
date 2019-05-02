@@ -31,7 +31,7 @@ public class Team3StressTest {
     // finish this test in 10 min.
     @Test(timeout = 600000)
     public void setupAndRun(){
-        InvertedIndexManager.DEFAULT_FLUSH_THRESHOLD = 5000;
+        InvertedIndexManager.DEFAULT_FLUSH_THRESHOLD = 10;
         InvertedIndexManager.DEFAULT_MERGE_THRESHOLD = 12;
 
         allDocuments = getOnlineTextFile(textUrl);
