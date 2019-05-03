@@ -60,7 +60,7 @@ public class InvertedIndexManager {
   private Analyzer analyzer;
 
   private InvertedIndex currInvertIndex;
-  private ArrayList<SegmentEntry> segmentMetaData = new ArrayList<>();
+  private final Set<SegmentEntry> segmentMetaData = Collections.synchronizedSet(new HashSet<>());
   private String workPath;
 
   // todo 4. key the metadate in memory used to do search
@@ -90,9 +90,12 @@ public class InvertedIndexManager {
   private void writeIndexMetaData() {
     try {
       BufferedWriter writer = new BufferedWriter(new FileWriter(this.workPath + "/metadata.txt"));
-      writer.write(this.segmentMetaData.size() + "\n");
-      for (SegmentEntry entry : this.segmentMetaData) {
-        writer.write(entry.getName() + " " + entry.getHeaderLen() + "\n");
+
+      synchronized (this.segmentMetaData) {
+        writer.write(this.segmentMetaData.size() + "\n");
+        for (SegmentEntry entry : this.segmentMetaData) {
+          writer.write(entry.getName() + " " + entry.getHeaderLen() + "\n");
+        }
       }
       writer.close();
     } catch (IOException e) {
@@ -189,15 +192,32 @@ public class InvertedIndexManager {
   public void mergeAllSegments() {
     // merge only happens at even number of segments
     Preconditions.checkArgument(getNumSegments() % 2 == 0);
-    Iterator<SegmentEntry> it = this.segmentMetaData.iterator();
+
     Set<SegmentEntry> synchronizedMap = Collections.synchronizedSet(new HashSet<>());
+    ArrayList<ParallelMerge> threads = new ArrayList<>();
     // do some thing
     int i = 0;
-    while (it.hasNext()) {
-      ParallelMerge t =
-          new ParallelMerge("Thread: " + i, this.workPath, synchronizedMap, it.next(), it.next());
-      t.start();
-      i++;
+    synchronized (this.segmentMetaData) {
+      Iterator<SegmentEntry> it = this.segmentMetaData.iterator();
+      while (it.hasNext()) {
+        ParallelMerge t =
+            new ParallelMerge("Thread: " + i, this.workPath, synchronizedMap, it.next(), it.next());
+        t.start();
+        threads.add(t);
+        i++;
+      }
+    }
+    for (ParallelMerge thread : threads) {
+      try {
+        thread.join();
+      } catch (InterruptedException e) {
+
+      }
+    }
+    System.out.println("Join merge");
+    synchronized (this.segmentMetaData) {
+      this.segmentMetaData.clear();
+      this.segmentMetaData.addAll(synchronizedMap);
     }
   }
 
@@ -260,7 +280,11 @@ public class InvertedIndexManager {
    * @return number of index segments.
    */
   public int getNumSegments() {
-    return this.segmentMetaData.size();
+    int num;
+    synchronized (this.segmentMetaData) {
+      num = this.segmentMetaData.size();
+    }
+    return num;
   }
 
   /**
