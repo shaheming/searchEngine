@@ -11,10 +11,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 
 class SegmentEntry {
   private String name;
@@ -75,14 +72,16 @@ public class InvertedIndexManager {
     this.workPath = indexFolder;
   }
 
-  private void readIndexMetaData() {
+  public static InvertedIndexManager open(String indexFolder, Analyzer analyzer) {
     try {
-      List<String> lines = Files.readAllLines(Paths.get(this.workPath + "/metadata.txt"));
+      List<String> lines = Files.readAllLines(Paths.get(indexFolder + "/metadata.txt"));
+      InvertedIndexManager inv = new InvertedIndexManager(indexFolder, analyzer);
       for (String line : lines.subList(1, lines.size())) {
         String[] cols = line.split("\\s");
-        this.segmentMetaData.add(new SegmentEntry(cols[0], Integer.valueOf(cols[1])));
+        inv.segmentMetaData.add(new SegmentEntry(cols[0], Integer.valueOf(cols[1])));
         System.out.println(cols[0] + " " + Integer.valueOf(cols[1]));
       }
+      return inv;
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
@@ -151,11 +150,55 @@ public class InvertedIndexManager {
     this.currInvertIndex = new InvertedIndex(oldInvertList.getBasePath());
   }
 
-  /** Merges all the disk segments of the inverted index pair-wise. */
+  static class ParallelMerge extends Thread {
+    String put;
+    InvertedIndex inv1;
+    InvertedIndex inv2;
+    Set<SegmentEntry> metaData;
+
+    public ParallelMerge(
+        String name,
+        String path,
+        final Set<SegmentEntry> metaData,
+        SegmentEntry s1,
+        SegmentEntry s2) {
+      super(name);
+      this.put = s1.getName() + " " + s2.getName();
+      this.inv1 = InvertedIndex.openInvertList(path, s1.getName(), s1.getHeaderLen());
+      this.inv2 = InvertedIndex.openInvertList(path, s2.getName(), s2.getHeaderLen());
+
+      this.metaData = metaData;
+    }
+
+    public void run() {
+      try {
+        InvertedIndex inv = inv1.merge(inv2);
+        SegmentEntry entry = new SegmentEntry(inv.getSegmentName(), inv.getHeaderLen());
+
+        synchronized (this.metaData) {
+          this.metaData.add(entry);
+        }
+      } catch (RuntimeException e) {
+        e.printStackTrace();
+      }
+      System.out.println(
+          "Merge: " + this.put + ",thread name is ：" + Thread.currentThread().getName());
+    }
+  }
+
   public void mergeAllSegments() {
     // merge only happens at even number of segments
     Preconditions.checkArgument(getNumSegments() % 2 == 0);
-    throw new UnsupportedOperationException();
+    Iterator<SegmentEntry> it = this.segmentMetaData.iterator();
+    Set<SegmentEntry> synchronizedMap = Collections.synchronizedSet(new HashSet<>());
+    // do some thing
+    int i = 0;
+    while (it.hasNext()) {
+      ParallelMerge t =
+          new ParallelMerge("Thread: " + i, this.workPath, synchronizedMap, it.next(), it.next());
+      t.start();
+      i++;
+    }
   }
 
   /**

@@ -148,7 +148,7 @@ class InvertedIndexHeaderEntry {
 
     this.size = buffer.getInt();
     this.ptr = buffer.getInt();
-    this.print();
+    //    this.print();
   }
 
   void print() {
@@ -170,7 +170,7 @@ class InvertedIndexHeaderEntry {
 
 public class InvertedIndex {
   private Integer docNum = 0;
-  private Map<String, ArrayList<Integer>> invertList = new TreeMap<String, ArrayList<Integer>>();
+  private Map<String, ArrayList<Integer>> invertList = new TreeMap<>();
   private String invertListPath;
   private String invertListDir;
   private String docStorePath;
@@ -183,8 +183,7 @@ public class InvertedIndex {
   private String segmentName;
   private Integer headerNum = 0;
   private WritePageBuffer writeBuffer;
-  private Map<String, InvertedIndexHeaderEntry> wordsDicEntries1 = new TreeMap<>();
-  private ArrayList<InvertedIndexHeaderEntry> wordsDicEntries = new ArrayList<>();
+  private Map<String, InvertedIndexHeaderEntry> wordsDicEntries = new TreeMap<>();
   private ArrayList<Integer> removedDocIds = new ArrayList<>();
 
   public void setRemovedDocIds(ArrayList<Integer> removedList) {
@@ -350,59 +349,66 @@ public class InvertedIndex {
     this.readHeader();
     inv.readHeader();
 
-    int p1 = 0;
-    int p2 = 0;
-    InvertedIndexHeaderEntry entry;
-    while (p1 < this.headerNum && p2 < inv.headerNum) {
-      int compare =
-          this.wordsDicEntries.get(p1).getKey().compareTo(inv.wordsDicEntries.get(p2).getKey());
+    Iterator<Map.Entry<String, InvertedIndexHeaderEntry>> it1 =
+        this.wordsDicEntries.entrySet().iterator();
+    Iterator<Map.Entry<String, InvertedIndexHeaderEntry>> it2 =
+        inv.wordsDicEntries.entrySet().iterator();
+    InvertedIndexHeaderEntry entry1;
+    InvertedIndexHeaderEntry entry2;
+
+    while (it1.hasNext() && it2.hasNext()) {
+      entry1 = it1.next().getValue();
+      entry2 = it2.next().getValue();
+      int compare = entry1.getKey().compareTo(entry2.getKey());
       if (compare < 0) {
-        entry = this.wordsDicEntries.get(p1);
         copyDocIdToRemoveDelete(
             des,
-            entry.getKey(),
+            entry1.getKey(),
             new LinkedList(this.getRemovedDocIds()),
-            this.readDocIds(entry),
+            this.readDocIds(entry1),
             0);
-        p1++;
 
       } else if (compare > 0) {
-        entry = inv.wordsDicEntries.get(p2);
         copyDocIdToRemoveDelete(
-            des, entry.getKey(), new LinkedList(inv.getRemovedDocIds()), inv.readDocIds(entry), 0);
-        p2++;
+            des,
+            entry2.getKey(),
+            new LinkedList(inv.getRemovedDocIds()),
+            inv.readDocIds(entry2),
+            0);
       } else {
-        entry = this.wordsDicEntries.get(p1);
         int offset =
             copyDocIdToRemoveDelete(
                 des,
-                entry.getKey(),
+                entry1.getKey(),
                 new LinkedList(this.getRemovedDocIds()),
-                this.readDocIds(entry),
+                this.readDocIds(entry1),
                 0);
-        entry = inv.wordsDicEntries.get(p2);
         copyDocIdToRemoveDelete(
             des,
-            entry.getKey(),
+            entry2.getKey(),
             new LinkedList(inv.getRemovedDocIds()),
-            inv.readDocIds(entry),
+            inv.readDocIds(entry2),
             ivL1Size);
-        p1++;
-        p2++;
       }
     }
-    while (p1 < this.headerNum) {
+    while (it1.hasNext()) {
 
-      entry = this.wordsDicEntries.get(p1);
+      entry1 = it1.next().getValue();
       copyDocIdToRemoveDelete(
-          des, entry.getKey(), new LinkedList(this.getRemovedDocIds()), this.readDocIds(entry), 0);
-      p1++;
+          des,
+          entry1.getKey(),
+          new LinkedList(this.getRemovedDocIds()),
+          this.readDocIds(entry1),
+          0);
     }
-    while (p2 < inv.headerNum) {
-      entry = inv.wordsDicEntries.get(p2);
+    while (it2.hasNext()) {
+      entry2 = it2.next().getValue();
       copyDocIdToRemoveDelete(
-          des, entry.getKey(), new LinkedList(inv.getRemovedDocIds()), this.readDocIds(entry), 0);
-      p1++;
+          des,
+          entry2.getKey(),
+          new LinkedList(inv.getRemovedDocIds()),
+          this.readDocIds(entry2),
+          ivL1Size);
     }
 
     des.flush();
@@ -471,7 +477,7 @@ public class InvertedIndex {
         }
         headerBuffer.flip();
         InvertedIndexHeaderEntry entry = new InvertedIndexHeaderEntry(headerBuffer);
-        wordsDicEntries.add(entry);
+        wordsDicEntries.put(entry.getKey(), entry);
         headerBuffer.clear();
         if (wordsDicEntries.size() >= this.headerNum) {
           return;
@@ -480,7 +486,7 @@ public class InvertedIndex {
 
       while (buffer.remaining() >= InvertedIndexHeaderEntry.InvertedIndexHeaderEntrySize) {
         InvertedIndexHeaderEntry entry = new InvertedIndexHeaderEntry(buffer);
-        wordsDicEntries.add(entry);
+        wordsDicEntries.put(entry.getKey(), entry);
         if (wordsDicEntries.size() >= this.headerNum) {
           return;
         }
@@ -540,9 +546,8 @@ public class InvertedIndex {
   }
 
   private String getTimeStamp() {
-    return (new Timestamp(System.currentTimeMillis()))
-        .toString()
-        .replace(" ", "_")
-        .replace("-", "");
+    return (new Timestamp(System.currentTimeMillis())).toString().replace(" ", "_").replace("-", "")
+        + "_"
+        + (int) (Math.random() * 1000 + 1) % 1000;
   }
 }
