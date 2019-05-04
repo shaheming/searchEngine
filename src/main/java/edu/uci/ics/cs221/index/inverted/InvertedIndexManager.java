@@ -30,23 +30,18 @@ public class InvertedIndexManager {
     public DocumentStore dbDocStore;
     private PageFileChannel pageFileChannel;
     private String dbpath;
-    private String name;
-    private Path path;
-    private int seg_counter;
-    /**
-     * The default flush threshold, in terms of number of documents.
-     * For example, a new Segment should be automatically created whenever there's 1000 documents in the buffer.
-     *
-     * In test cases, the default flush threshold could possibly be set to any number.
-     */
+    private int seg_counter=0;
+
     public static int DEFAULT_FLUSH_THRESHOLD = 1000;
-    /**
-     * The default merge threshold, in terms of number of segments in the inverted index.
-     * When the number of segments reaches the threshold, a merge should be automatically triggered.
-     *
-     * In test cases, the default merge threshold could possibly be set to any number.
-     */
     public static int DEFAULT_MERGE_THRESHOLD = 8;
+
+    private InvertedIndexManager(String indexFolder, Analyzer analyzer) {
+        this.analyzer=analyzer;
+        this.indexFolder=indexFolder;
+        checkAndCreateDir(indexFolder);
+        dbpath=indexFolder+"/test.db";
+
+    }
 
     private boolean checkAndCreateDir(String path) {
         File directory = new File(path);
@@ -57,22 +52,13 @@ public class InvertedIndexManager {
         return true;
     }
 
-    private InvertedIndexManager(String indexFolder, Analyzer analyzer) {
-        this.analyzer=analyzer;
-        this.indexFolder=indexFolder;
-        checkAndCreateDir(indexFolder);
-        dbpath=indexFolder+"/test.db";
-        this.name="/segment"+getNumSegments();
-        path=Paths.get(indexFolder+name+".txt");
-        this.pageFileChannel=PageFileChannel.createOrOpen(path);
-        seg_counter=0;
-
-
+    private Path set_path_segment(int i){
+        Path path;
+        String temp="/segment"+i;
+        path=Paths.get(indexFolder+temp+".txt");
+        return path;
     }
 
-    /**
-     * Creates an inverted index manager with the folder and an analyzer
-     */
     public static InvertedIndexManager createOrOpen(String indexFolder, Analyzer analyzer) {
         try {
             Path indexFolderPath = Paths.get(indexFolder);
@@ -91,11 +77,6 @@ public class InvertedIndexManager {
         }
     }
 
-    /**
-     * Adds a document to the inverted index.
-     * Document should live in a in-memory buffer until `flush()` is called to write the segment to disk.
-     * @param document
-     */
     public void addDocument(Document document) {
         if(dbDocStore==null)
             dbDocStore=MapdbDocStore.createWithBulkLoad(dbpath,documents.entrySet().iterator());
@@ -114,18 +95,14 @@ public class InvertedIndexManager {
            }
         }
         int after_insert_size=invertlist.size();
+
         if(after_insert_size>=DEFAULT_FLUSH_THRESHOLD){
+            seg_counter++;
+            pageFileChannel=PageFileChannel.createOrOpen(set_path_segment(seg_counter));
             flush();
             invertlist.clear();
-            seg_counter++;
-            name="/segment"+getNumSegments();
-            path=Paths.get(indexFolder+name+".txt");
             pageFileChannel.close();
-            pageFileChannel=PageFileChannel.createOrOpen(path);
-
         }
-
-        //throw new UnsupportedOperationException();
     }
 
     /**
