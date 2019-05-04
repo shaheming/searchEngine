@@ -27,7 +27,7 @@ public class InvertedIndexManager {
     private String indexFolder;
     private Map<String,List<Integer>> invertlist=new TreeMap<>();
     private Map<Integer, Document> documents = new TreeMap<>();
-    public DocumentStore dbDocStore;
+    public  DocumentStore dbDocStore;
     private PageFileChannel pageFileChannel;
     private String dbpath;
     private int seg_counter=0;
@@ -54,8 +54,7 @@ public class InvertedIndexManager {
 
     private Path set_path_segment(int i){
         Path path;
-        String temp="/segment"+i;
-        path=Paths.get(indexFolder+temp+".txt");
+        path=Paths.get("/seg+"+i+"/"+"segment"+i+".txt");
         return path;
     }
 
@@ -102,23 +101,18 @@ public class InvertedIndexManager {
             flush();
             invertlist.clear();
             pageFileChannel.close();
+            if(getNumSegments()>DEFAULT_MERGE_THRESHOLD&&getNumSegments()%2==0)
+                mergeAllSegments();
         }
     }
 
-    /**
-     * Flushes all the documents in the in-memory segment buffer to disk. If the buffer is empty, it should not do anything.
-     * flush() writes the segment to disk containing the posting list and the corresponding document store.
-     */
     public void flush() {
-
-        int flush_counter=0;
         Iterator iter=invertlist.entrySet().iterator();
         int n=invertlist.size()*48;//1000*48=48000
         int sum=0;
         while(iter.hasNext()){
-            flush_counter++;
             ByteBuffer buffer_temp=ByteBuffer.allocate(48);
-            Map.Entry <String, ArrayList<Integer>> entry=(Map.Entry )iter.next();
+            Map.Entry <String, ArrayList<Integer>> entry=(Map.Entry)iter.next();
             int temp=entry.getValue().size();
 
             String str=entry.getKey();
@@ -135,19 +129,39 @@ public class InvertedIndexManager {
             pageFileChannel.appendAllBytes(buffer_temp);
             buffer_temp.clear();
         }
-
-        if(getNumSegments()>DEFAULT_MERGE_THRESHOLD&&getNumSegments()%2==0)
-            mergeAllSegments();
-
     }
 
-    /**
-     * Merges all the disk segments of the inverted index pair-wise.
-     */
     public void mergeAllSegments() {
         // merge only happens at even number of segments
         Preconditions.checkArgument(getNumSegments() % 2 == 0);
         int n=getNumSegments();
+        for(int i=1;i<n;i=i+2) {
+            PageFileChannel temp1 = PageFileChannel.createOrOpen(set_path_segment(i));
+            PageFileChannel temp2 = PageFileChannel.createOrOpen(set_path_segment(i+1));
+
+
+
+            temp1.close();
+            temp2.close();
+            File f1 = new File(indexFolder+"/seg"+i);
+            File[] files1 = f1.listFiles();
+            for (File file : files1) {
+                file.delete();
+            }
+            f1.delete();
+
+            File f2 = new File(indexFolder+"/seg"+i+1);
+            File[] files2 = f2.listFiles();
+            for (File file : files2) {
+                file.delete();
+            }
+            f2.delete();
+
+
+
+            
+
+        }
 
         seg_counter=seg_counter/2;
 
