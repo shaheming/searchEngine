@@ -7,7 +7,9 @@ import edu.uci.ics.cs221.storage.DocumentStore;
 import edu.uci.ics.cs221.storage.MapdbDocStore;
 
 import java.io.IOException;
+import java.io.*;
 import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -23,13 +25,14 @@ import java.util.*;
 public class InvertedIndexManager {
     private Analyzer analyzer;
     private String indexFolder;
-    private TreeMap<String,List<Integer>> invertlist=new TreeMap<String,List<Integer>>();
+    private Map<String,List<Integer>> invertlist=new TreeMap<>();
+    private Map<Integer, Document> documents = new TreeMap<>();
     private DocumentStore dbDocStore;
     private PageFileChannel pageFileChannel;
     private String dbpath;
     private String name;
-    private Files file;
     private Path path;
+    private int seg_counter;
     /**
      * The default flush threshold, in terms of number of documents.
      * For example, a new Segment should be automatically created whenever there's 1000 documents in the buffer.
@@ -45,15 +48,23 @@ public class InvertedIndexManager {
      */
     public static int DEFAULT_MERGE_THRESHOLD = 8;
 
+    private void checkAndCreateDir(String path) {
+        File directory = new File(path);
+        if (!directory.exists()) {
+            directory.mkdirs();
+        }
+    }
 
     private InvertedIndexManager(String indexFolder, Analyzer analyzer) {
         this.analyzer=analyzer;
         this.indexFolder=indexFolder;
-        dbpath=indexFolder+".db";
-        dbDocStore=MapdbDocStore.createOrOpenReadOnly(dbpath);
+        checkAndCreateDir(indexFolder);
+        dbpath=indexFolder+"/test.db";
+        dbDocStore=MapdbDocStore.createWithBulkLoad(dbpath,documents.entrySet().iterator());
         this.name="/segment"+getNumSegments();
         path=Paths.get(indexFolder+name+".txt");
         this.pageFileChannel=PageFileChannel.createOrOpen(path);
+        seg_counter=1;
 
     }
 
@@ -85,8 +96,8 @@ public class InvertedIndexManager {
      */
     public void addDocument(Document document) {
         List<String> temp=analyzer.analyze(document.getText());
-        int total=invertlist.size();
-        dbDocStore.addDocument(total,document);
+        int total=(int)dbDocStore.size(); //global id
+        dbDocStore.addDocument(total,document);//
         int n=temp.size();
         for(int i=0;i<n;i++) {
            if(!invertlist.containsKey(temp.get(i))){
@@ -99,9 +110,14 @@ public class InvertedIndexManager {
            }
         }
         int after_insert_size=invertlist.size();
-        if(after_insert_size>1000){
+        if(after_insert_size>=1000){
             flush();
             invertlist.clear();
+            seg_counter++;
+            name="/segment"+getNumSegments();
+            path=Paths.get(indexFolder+name+".txt");
+            pageFileChannel=PageFileChannel.createOrOpen(path);
+
         }
         //throw new UnsupportedOperationException();
     }
@@ -111,11 +127,27 @@ public class InvertedIndexManager {
      * flush() writes the segment to disk containing the posting list and the corresponding document store.
      */
     public void flush() {
+        Iterator iter=invertlist.entrySet().iterator();
+        int n=invertlist.size()*28;//1000*28=28000
+        while(iter.hasNext()){
+
+            Map.Entry <String, ArrayList<Integer>> entry=(Map.Entry )iter.next();
+            int temp=entry.getValue().size();
+            String str= entry.getKey();
+            try {
+                ByteBuffer buffer = ByteBuffer.wrap(str.getBytes("UTF-8"));
+            }
+            catch (Exception e){}
 
 
+        }
 
-        throw new UnsupportedOperationException();
+        //throw new UnsupportedOperationException();
     }
+
+
+
+
 
     /**
      * Merges all the disk segments of the inverted index pair-wise.
@@ -188,7 +220,7 @@ public class InvertedIndexManager {
      * @return number of index segments.
      */
     public int getNumSegments() {
-        throw new UnsupportedOperationException();
+        return seg_counter;
     }
 
     /**
