@@ -48,11 +48,13 @@ public class InvertedIndexManager {
      */
     public static int DEFAULT_MERGE_THRESHOLD = 8;
 
-    private void checkAndCreateDir(String path) {
+    private boolean checkAndCreateDir(String path) {
         File directory = new File(path);
         if (!directory.exists()) {
             directory.mkdirs();
+            return false;
         }
+        return true;
     }
 
     private InvertedIndexManager(String indexFolder, Analyzer analyzer) {
@@ -60,12 +62,10 @@ public class InvertedIndexManager {
         this.indexFolder=indexFolder;
         checkAndCreateDir(indexFolder);
         dbpath=indexFolder+"/test.db";
-        if(dbDocStore==null) dbDocStore=MapdbDocStore.createWithBulkLoad(dbpath,documents.entrySet().iterator());
-        else dbDocStore=MapdbDocStore.createOrOpen(dbpath);
         this.name="/segment"+getNumSegments();
         path=Paths.get(indexFolder+name+".txt");
         this.pageFileChannel=PageFileChannel.createOrOpen(path);
-        seg_counter=1;
+        seg_counter=0;
 
 
     }
@@ -97,6 +97,8 @@ public class InvertedIndexManager {
      * @param document
      */
     public void addDocument(Document document) {
+        if(dbDocStore==null)
+            dbDocStore=MapdbDocStore.createWithBulkLoad(dbpath,documents.entrySet().iterator());
         List<String> temp=analyzer.analyze(document.getText());
         int total=(int)dbDocStore.size(); //global id
         dbDocStore.addDocument(total,document);//
@@ -112,7 +114,7 @@ public class InvertedIndexManager {
            }
         }
         int after_insert_size=invertlist.size();
-        if(after_insert_size>=1000){
+        if(after_insert_size>=DEFAULT_FLUSH_THRESHOLD){
             flush();
             invertlist.clear();
             seg_counter++;
@@ -121,6 +123,7 @@ public class InvertedIndexManager {
             pageFileChannel=PageFileChannel.createOrOpen(path);
 
         }
+
         //throw new UnsupportedOperationException();
     }
 
@@ -129,33 +132,35 @@ public class InvertedIndexManager {
      * flush() writes the segment to disk containing the posting list and the corresponding document store.
      */
     public void flush() {
+
         int flush_counter=0;
         Iterator iter=invertlist.entrySet().iterator();
-        int n=invertlist.size()*28;//1000*28=28000
+        int n=invertlist.size()*48;//1000*48=48000
+        int sum=0;
         while(iter.hasNext()){
             flush_counter++;
-            ByteBuffer buffer_temp=ByteBuffer.allocate(28);
+            ByteBuffer buffer_temp=ByteBuffer.allocate(48);
             Map.Entry <String, ArrayList<Integer>> entry=(Map.Entry )iter.next();
             int temp=entry.getValue().size();
+
             String str=entry.getKey();
             if(str.length()>20) str=str.substring(0,20);
             System.out.println("size: "+str.length()+" "+str+"temp :"+temp);
             char chars[]= str.toCharArray();
-
-
             for(int i=0;i<chars.length;i++){
                 buffer_temp.putChar(chars[i]);
             }
             buffer_temp.putInt(temp);
+            buffer_temp.putInt(n+sum);
+
+            sum=sum+temp*4;
             pageFileChannel.appendAllBytes(buffer_temp);
-
-
-
-
             buffer_temp.clear();
         }
 
-        //throw new UnsupportedOperationException();
+        if(getNumSegments()>DEFAULT_MERGE_THRESHOLD)
+            mergeAllSegments();
+        
     }
 
 
@@ -168,9 +173,11 @@ public class InvertedIndexManager {
     public void mergeAllSegments() {
         // merge only happens at even number of segments
         Preconditions.checkArgument(getNumSegments() % 2 == 0);
+        int n=getNumSegments();
 
 
-        throw new UnsupportedOperationException();
+
+        //throw new UnsupportedOperationException();
     }
 
     /**
@@ -195,6 +202,7 @@ public class InvertedIndexManager {
      */
     public Iterator<Document> searchAndQuery(List<String> keywords) {
         Preconditions.checkNotNull(keywords);
+        int n=keywords.size();
 
         throw new UnsupportedOperationException();
     }
