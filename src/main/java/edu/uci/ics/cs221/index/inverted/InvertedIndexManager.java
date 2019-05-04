@@ -2,8 +2,6 @@ package edu.uci.ics.cs221.index.inverted;
 
 import com.google.common.base.Preconditions;
 import edu.uci.ics.cs221.analysis.Analyzer;
-import edu.uci.ics.cs221.analysis.ComposableAnalyzer;
-import edu.uci.ics.cs221.analysis.PunctuationTokenizer;
 import edu.uci.ics.cs221.storage.Document;
 import edu.uci.ics.cs221.storage.DocumentStore;
 import edu.uci.ics.cs221.storage.MapdbDocStore;
@@ -27,6 +25,11 @@ public class InvertedIndexManager {
     private String indexFolder;
     private TreeMap<String,List<Integer>> invertlist=new TreeMap<String,List<Integer>>();
     private DocumentStore dbDocStore;
+    private PageFileChannel pageFileChannel;
+    private String dbpath;
+    private String name;
+    private Files file;
+    private Path path;
     /**
      * The default flush threshold, in terms of number of documents.
      * For example, a new Segment should be automatically created whenever there's 1000 documents in the buffer.
@@ -46,8 +49,11 @@ public class InvertedIndexManager {
     private InvertedIndexManager(String indexFolder, Analyzer analyzer) {
         this.analyzer=analyzer;
         this.indexFolder=indexFolder;
-        String dbpath=indexFolder+"test.db";//todo
+        dbpath=indexFolder+".db";
         dbDocStore=MapdbDocStore.createOrOpenReadOnly(dbpath);
+        this.name="/segment"+getNumSegments();
+        path=Paths.get(indexFolder+name+".txt");
+        this.pageFileChannel=PageFileChannel.createOrOpen(path);
 
     }
 
@@ -81,7 +87,6 @@ public class InvertedIndexManager {
         List<String> temp=analyzer.analyze(document.getText());
         int total=invertlist.size();
         dbDocStore.addDocument(total,document);
-
         int n=temp.size();
         for(int i=0;i<n;i++) {
            if(!invertlist.containsKey(temp.get(i))){
@@ -89,11 +94,15 @@ public class InvertedIndexManager {
                list.add(total);
                invertlist.put(temp.get(i),list);
            }
+           else{
+               invertlist.get(temp.get(i)).add(total);
+           }
         }
-
-
-
-
+        int after_insert_size=invertlist.size();
+        if(after_insert_size>1000){
+            flush();
+            invertlist.clear();
+        }
         //throw new UnsupportedOperationException();
     }
 
@@ -114,6 +123,8 @@ public class InvertedIndexManager {
     public void mergeAllSegments() {
         // merge only happens at even number of segments
         Preconditions.checkArgument(getNumSegments() % 2 == 0);
+
+
         throw new UnsupportedOperationException();
     }
 
