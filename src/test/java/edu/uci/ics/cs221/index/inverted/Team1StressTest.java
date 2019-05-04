@@ -123,6 +123,7 @@ public class Team1StressTest {
             }
         }
         Files.delete(path);
+
     }
 
     /**

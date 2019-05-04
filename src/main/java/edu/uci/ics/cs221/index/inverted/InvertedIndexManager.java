@@ -27,7 +27,7 @@ public class InvertedIndexManager {
     private String indexFolder;
     private Map<String,List<Integer>> invertlist=new TreeMap<>();
     private Map<Integer, Document> documents = new TreeMap<>();
-    private DocumentStore dbDocStore;
+    public DocumentStore dbDocStore;
     private PageFileChannel pageFileChannel;
     private String dbpath;
     private String name;
@@ -60,11 +60,13 @@ public class InvertedIndexManager {
         this.indexFolder=indexFolder;
         checkAndCreateDir(indexFolder);
         dbpath=indexFolder+"/test.db";
-        dbDocStore=MapdbDocStore.createWithBulkLoad(dbpath,documents.entrySet().iterator());
+        if(dbDocStore==null) dbDocStore=MapdbDocStore.createWithBulkLoad(dbpath,documents.entrySet().iterator());
+        else dbDocStore=MapdbDocStore.createOrOpen(dbpath);
         this.name="/segment"+getNumSegments();
         path=Paths.get(indexFolder+name+".txt");
         this.pageFileChannel=PageFileChannel.createOrOpen(path);
         seg_counter=1;
+
 
     }
 
@@ -135,7 +137,12 @@ public class InvertedIndexManager {
             ByteBuffer buffer_temp=ByteBuffer.allocate(28);
             Map.Entry <String, ArrayList<Integer>> entry=(Map.Entry )iter.next();
             int temp=entry.getValue().size();
-            char chars[]= entry.getKey().toCharArray();
+            String str=entry.getKey();
+            if(str.length()>20) str=str.substring(0,20);
+            System.out.println("size: "+str.length()+" "+str+"temp :"+temp);
+            char chars[]= str.toCharArray();
+
+
             for(int i=0;i<chars.length;i++){
                 buffer_temp.putChar(chars[i]);
             }
