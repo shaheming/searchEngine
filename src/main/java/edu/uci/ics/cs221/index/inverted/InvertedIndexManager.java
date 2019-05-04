@@ -120,6 +120,7 @@ public class InvertedIndexManager {
             seg_counter++;
             name="/segment"+getNumSegments();
             path=Paths.get(indexFolder+name+".txt");
+            pageFileChannel.close();
             pageFileChannel=PageFileChannel.createOrOpen(path);
 
         }
@@ -158,14 +159,10 @@ public class InvertedIndexManager {
             buffer_temp.clear();
         }
 
-        if(getNumSegments()>DEFAULT_MERGE_THRESHOLD)
+        if(getNumSegments()>DEFAULT_MERGE_THRESHOLD&&getNumSegments()%2==0)
             mergeAllSegments();
-        
+
     }
-
-
-
-
 
     /**
      * Merges all the disk segments of the inverted index pair-wise.
@@ -174,6 +171,8 @@ public class InvertedIndexManager {
         // merge only happens at even number of segments
         Preconditions.checkArgument(getNumSegments() % 2 == 0);
         int n=getNumSegments();
+
+        seg_counter=seg_counter/2;
 
 
 
