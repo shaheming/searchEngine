@@ -13,12 +13,10 @@ import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Comparator;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.Set;
+import java.util.*;
 
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 /**
  * For teams doing project 2 extra credits (deletion), please add all your own deletion test cases
@@ -75,7 +73,19 @@ public class InvertedIndexDeletionTest {
       assertFalse(it.next().getText().contains("pig"));
     }
     Iterator<Document> its = invertedList.searchQuery("pig");
+
     assertFalse(its.hasNext());
+    invertedList.deleteDocuments("toi");
+    Iterator<Document> andit = invertedList.searchAndQuery(Arrays.asList("pig","toy"));
+    assertFalse(andit.hasNext());
+
+    Iterator<Document> andor = invertedList.searchOrQuery(Arrays.asList("pig","dog"));
+    while (andor.hasNext()) {
+      String text =andor.next().getText();
+      System.out.println(text);
+      assertTrue((text.contains("cat") || text.contains("Dot")) );
+    }
+
   }
 
   @After
