@@ -10,7 +10,11 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 
@@ -139,12 +143,13 @@ public class Team5OrSearchTest {
 
     public void deleteTmp() throws Exception {
         PageFileChannel.resetCounters();
-        File f = new File(path);
-        File[] files = f.listFiles();
-        for (File file : files) {
-            file.delete();
-        }
-        f.delete();
+        Path rootPath = Paths.get(path);
+        Files.walk(rootPath)
+                .sorted(Comparator.reverseOrder())
+                .map(Path::toFile)
+                .peek(System.out::println)
+                .forEach(File::delete);
+        Files.deleteIfExists(rootPath);
     }
 
 }

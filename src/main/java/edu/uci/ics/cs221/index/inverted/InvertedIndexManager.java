@@ -1,5 +1,5 @@
 package edu.uci.ics.cs221.index.inverted;
-//todo
+// todo
 import com.google.common.base.Preconditions;
 import edu.uci.ics.cs221.analysis.Analyzer;
 import edu.uci.ics.cs221.storage.Document;
@@ -202,6 +202,8 @@ public class InvertedIndexManager {
 
     public void run() {
       try {
+        System.out.println(
+            "Start merge: " + this.put + ",thread name is ：" + Thread.currentThread().getName());
         InvertedIndex inv = inv1.merge(inv2);
         SegmentEntry entry = new SegmentEntry(inv.getSegmentName(), inv.getHeaderLen());
 
@@ -212,7 +214,11 @@ public class InvertedIndexManager {
         e.printStackTrace();
       }
       System.out.println(
-          "Merge: " + this.put + ",thread name is ：" + Thread.currentThread().getName());
+          "Merge: "
+              + this.put
+              + ",thread name is ："
+              + Thread.currentThread().getName()
+              + "finished");
     }
   }
 
@@ -222,35 +228,52 @@ public class InvertedIndexManager {
 
     Map<Integer, SegmentEntry> synchronizedMap = Collections.synchronizedMap(new TreeMap<>());
     // do some thing
-    int desSegId = 0;
-    ExecutorService exec = Executors.newFixedThreadPool(4);
-    synchronized (this.segmentMetaData) {
-      Iterator<Map.Entry<Integer, SegmentEntry>> it = this.segmentMetaData.entrySet().iterator();
-      while (it.hasNext()) {
-        exec.execute(
-            new ParallelMerge(
-                "Thread: " + desSegId,
-                this.workPath,
-                synchronizedMap,
-                it.next().getValue(),
-                it.next().getValue(),
-                desSegId));
-        desSegId++;
+    if (this.segmentMetaData.size() > 2) {
+      int desSegId = 0;
+      ExecutorService exec = Executors.newFixedThreadPool(4);
+      synchronized (this.segmentMetaData) {
+        Iterator<Map.Entry<Integer, SegmentEntry>> it = this.segmentMetaData.entrySet().iterator();
+        while (it.hasNext()) {
+          exec.execute(
+              new ParallelMerge(
+                  "Thread: " + desSegId,
+                  this.workPath,
+                  synchronizedMap,
+                  it.next().getValue(),
+                  it.next().getValue(),
+                  desSegId));
+          desSegId++;
+        }
       }
-    }
-    exec.shutdown();
-    try {
-      while (!exec.awaitTermination(1L, TimeUnit.HOURS)) {
-        System.out.println("Not yet. Still waiting for termination");
-      }
+      exec.shutdown();
+      try {
+        while (!exec.awaitTermination(1L, TimeUnit.HOURS)) {
+          System.out.println("Not yet. Still waiting for termination");
+        }
 
-    } catch (InterruptedException e) {
+      } catch (InterruptedException e) {
+      }
+    } else {
+      Iterator<Map.Entry<Integer, SegmentEntry>> it = this.segmentMetaData.entrySet().iterator();
+      SegmentEntry s1 = it.next().getValue();
+      SegmentEntry s2 = it.next().getValue();
+      InvertedIndex inv1 =
+          InvertedIndex.openInvertList(this.workPath, s1.getName(), s1.getHeaderLen());
+      InvertedIndex inv2 =
+          InvertedIndex.openInvertList(this.workPath, s2.getName(), s2.getHeaderLen());
+      InvertedIndex inv = inv1.merge(inv2);
+      SegmentEntry entry = new SegmentEntry(inv.getSegmentName(), inv.getHeaderLen());
+
+      synchronized (synchronizedMap) {
+        synchronizedMap.put(0, entry);
+      }
     }
 
     System.out.println("Join merge");
     synchronized (this.segmentMetaData) {
       this.segmentMetaData.clear();
       this.segmentMetaData.putAll(synchronizedMap);
+      this.writeIndexMetaData();
     }
   }
 

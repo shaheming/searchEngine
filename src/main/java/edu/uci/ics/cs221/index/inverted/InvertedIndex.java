@@ -70,16 +70,16 @@ class WritePageBuffer {
       if (bufferOld.remaining() > 0) buffer.put(bufferOld);
       //            System.out.println(Arrays.toString(buffer1.array()));
       //            System.out.println(Arrays.toString(buffer2.array()));
-      bufferOld.clear();
+
       this.flush(bufferOld);
     }
   }
 
   private void flush(ByteBuffer buffer) {
-    buffer.position(PageFileChannel.PAGE_SIZE);
-    buffer.flip();
+    buffer.limit(PageFileChannel.PAGE_SIZE);
+    buffer.position(0);
     this.fileChannel.appendPage(buffer.slice());
-    this.buffer.clear();
+    buffer.clear();
   }
 
   public void flush() {
@@ -98,7 +98,7 @@ class InvertedIndexHeaderEntry {
   private String key;
   private Integer size;
   private Integer ptr;
-  static Integer keyByteSize = 20;
+  static Integer keyByteSize = 30;
   static Integer ptrByteSize = 4;
   static Integer listByteSize = 4;
   static Integer InvertedIndexHeaderEntrySize = keyByteSize + ptrByteSize + listByteSize;
@@ -136,23 +136,32 @@ class InvertedIndexHeaderEntry {
   }
 
   InvertedIndexHeaderEntry(ByteBuffer buffer) {
-    char[] strArray = new char[20];
+    char[] strArray = new char[InvertedIndexHeaderEntry.keyByteSize];
     for (int i = 0; i < InvertedIndexHeaderEntry.keyByteSize; i++) {
       char c = (char) buffer.get();
+      if (c < 'a' || c > 'z') {}
+
       if (c == '\0') {
         this.key = new String(Arrays.copyOfRange(strArray, 0, i));
         break;
       } else {
         strArray[i] = c;
+        if (i == InvertedIndexHeaderEntry.keyByteSize - 1) {
+          this.key = new String(Arrays.copyOfRange(strArray, 0, i + 1));
+        }
       }
     }
+
+    if (this.key == null) {
+      this.key = new String(Arrays.copyOfRange(strArray, 0, InvertedIndexHeaderEntry.keyByteSize));
+    }
+
     for (int i = this.key.length() + 1; i < InvertedIndexHeaderEntry.keyByteSize; i++) {
       buffer.get();
     }
-
     this.size = buffer.getInt();
     this.ptr = buffer.getInt();
-    //    this.print();
+    this.print();
   }
 
   void print() {
@@ -164,9 +173,10 @@ class InvertedIndexHeaderEntry {
     for (int i = 0; i < this.key.length(); i++) {
       buffer.put((byte) this.key.charAt(i));
     }
-    for (int i = this.key.length(); i < keyByteSize; i++) {
+    for (int i = this.key.length(); i < InvertedIndexHeaderEntry.keyByteSize; i++) {
       buffer.put((byte) 0);
     }
+
     buffer.putInt(this.size);
     buffer.putInt(this.ptr);
   }
@@ -208,11 +218,6 @@ public class InvertedIndex {
     InitFilePath(dir, getTimeStamp());
     this.checkAndCreateDir(this.invertListDir);
     this.checkAndCreateDir(this.docStoreDir);
-
-    if (this.fileChannel == null) {
-      this.fileChannel = PageFileChannel.createOrOpen(Paths.get(this.invertListPath));
-    }
-    this.writeBuffer = new WritePageBuffer(this.fileChannel);
   }
 
   private void checkAndCreateDir(String path) {
@@ -253,6 +258,10 @@ public class InvertedIndex {
    * @return
    */
   public boolean flush() {
+    if (this.fileChannel == null) {
+      this.fileChannel = PageFileChannel.createOrOpen(Paths.get(this.invertListPath));
+    }
+    this.writeBuffer = new WritePageBuffer(this.fileChannel);
 
     if (this.docStore == null)
       this.docStore =
@@ -263,12 +272,14 @@ public class InvertedIndex {
     this.calHeaderLen();
     Integer curListPtr = this.headerLen;
     InvertedIndexHeaderEntry headerEntry = new InvertedIndexHeaderEntry();
+    int index = 0;
     for (Map.Entry<String, List<Integer>> entry : this.invertList.entrySet()) {
       headerEntry.setKey(entry.getKey());
       headerEntry.setSize(entry.getValue().size());
       headerEntry.setPtr(curListPtr);
-      curListPtr += entry.getValue().size() * 4;
+      curListPtr += entry.getValue().size() * InvertedIndexHeaderEntry.ptrByteSize;
       headerEntry.writeToMyByteBuffer(this.writeBuffer);
+      index++;
     }
     for (Map.Entry<String, List<Integer>> entry : this.invertList.entrySet()) {
       for (Integer i : entry.getValue()) {
@@ -325,7 +336,7 @@ public class InvertedIndex {
       ArrayList<Integer> ids,
       Integer offset) {
     int counter = 0;
-    ArrayList<Integer> newDocIds = new ArrayList<Integer>();
+    ArrayList<Integer> newDocIds = new ArrayList<>();
     for (int i = 0; i < ids.size(); i++) {
       if ((removedDq.size() > 0) && removedDq.peek() <= ids.get(i)) {
         removedDq.poll();
@@ -439,6 +450,7 @@ public class InvertedIndex {
   public void addDocument(Document document, Set<String> tokens) {
     this.documents.put(this.docNum, document);
     for (String key : tokens) {
+      if (key.length() == 0 || key.length() > InvertedIndexHeaderEntry.keyByteSize) continue;
       if (this.invertList.containsKey(key)) {
         invertList.get(key).add(this.docNum);
       } else {
@@ -476,6 +488,9 @@ public class InvertedIndex {
 
   /** deserialize the header */
   public void readHeader() {
+    if (this.fileChannel == null) {
+      this.fileChannel = PageFileChannel.createOrOpen(Paths.get(this.invertListPath));
+    }
     Integer pageNum = (this.headerLen + PageFileChannel.PAGE_SIZE - 1) / PageFileChannel.PAGE_SIZE;
     ByteBuffer headerBuffer =
         ByteBuffer.allocate(InvertedIndexHeaderEntry.InvertedIndexHeaderEntrySize);
@@ -535,6 +550,10 @@ public class InvertedIndex {
               }
             };
         exec.execute(runnableTask);
+      } else {
+        synchronized (synchronizedMap) {
+          synchronizedMap.put(word, new ArrayList<Integer>());
+        }
       }
     }
     exec.shutdown();
@@ -658,7 +677,9 @@ public class InvertedIndex {
                 + PageFileChannel.PAGE_SIZE
                 - 1)
             / PageFileChannel.PAGE_SIZE;
-    int offset = entry.getPtr() - pageStart * PageFileChannel.PAGE_SIZE;
+    int offset =
+        pageStart > 0 ? entry.getPtr() - pageStart * PageFileChannel.PAGE_SIZE : entry.getPtr();
+
     ArrayList<Integer> docIds = new ArrayList<>();
     ByteBuffer intBuffer = ByteBuffer.allocate(InvertedIndexHeaderEntry.listByteSize);
     for (int i = pageStart; i <= pageEnd; i++) {
@@ -721,7 +742,7 @@ public class InvertedIndex {
   public Map<Integer, Document> getAllDocuments() {
     if (this.docStore == null) this.openReadOnlyDocDb();
     Map<Integer, Document> docs = new HashMap<>();
-    for (int i = 0; i < this.docStore.size(); i++) {
+    for (int i = 0; i < (int) this.docStore.size(); i++) {
       docs.put(i, this.docStore.getDocument(i));
     }
     return docs;
