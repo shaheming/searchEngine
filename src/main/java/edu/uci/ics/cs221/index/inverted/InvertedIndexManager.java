@@ -127,19 +127,25 @@ public class InvertedIndexManager {
      * flush() writes the segment to disk containing the posting list and the corresponding document store.
      */
     public void flush() {
+        int flush_counter=0;
         Iterator iter=invertlist.entrySet().iterator();
         int n=invertlist.size()*28;//1000*28=28000
         while(iter.hasNext()){
-
+            flush_counter++;
+            ByteBuffer buffer_temp=ByteBuffer.allocate(28);
             Map.Entry <String, ArrayList<Integer>> entry=(Map.Entry )iter.next();
             int temp=entry.getValue().size();
-            String str= entry.getKey();
-            try {
-                ByteBuffer buffer = ByteBuffer.wrap(str.getBytes("UTF-8"));
+            char chars[]= entry.getKey().toCharArray();
+            for(int i=0;i<chars.length;i++){
+                buffer_temp.putChar(chars[i]);
             }
-            catch (Exception e){}
+            buffer_temp.putInt(temp);
+            pageFileChannel.appendAllBytes(buffer_temp);
 
 
+
+
+            buffer_temp.clear();
         }
 
         //throw new UnsupportedOperationException();
