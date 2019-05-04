@@ -2,7 +2,11 @@ package edu.uci.ics.cs221.index.inverted;
 
 import com.google.common.base.Preconditions;
 import edu.uci.ics.cs221.analysis.Analyzer;
+import edu.uci.ics.cs221.analysis.ComposableAnalyzer;
+import edu.uci.ics.cs221.analysis.PunctuationTokenizer;
 import edu.uci.ics.cs221.storage.Document;
+import edu.uci.ics.cs221.storage.DocumentStore;
+import edu.uci.ics.cs221.storage.MapdbDocStore;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -11,6 +15,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Iterator;
 import java.util.List;
+import java.util.*;
 
 /**
  * This class manages an disk-based inverted index and all the documents in the inverted index.
@@ -18,7 +23,10 @@ import java.util.List;
  * Please refer to the project 2 wiki page for implementation guidelines.
  */
 public class InvertedIndexManager {
-
+    private Analyzer analyzer;
+    private String indexFolder;
+    private TreeMap<String,List<Integer>> invertlist=new TreeMap<String,List<Integer>>();
+    private DocumentStore dbDocStore;
     /**
      * The default flush threshold, in terms of number of documents.
      * For example, a new Segment should be automatically created whenever there's 1000 documents in the buffer.
@@ -26,7 +34,6 @@ public class InvertedIndexManager {
      * In test cases, the default flush threshold could possibly be set to any number.
      */
     public static int DEFAULT_FLUSH_THRESHOLD = 1000;
-
     /**
      * The default merge threshold, in terms of number of segments in the inverted index.
      * When the number of segments reaches the threshold, a merge should be automatically triggered.
@@ -37,6 +44,11 @@ public class InvertedIndexManager {
 
 
     private InvertedIndexManager(String indexFolder, Analyzer analyzer) {
+        this.analyzer=analyzer;
+        this.indexFolder=indexFolder;
+        String dbpath=indexFolder+"test.db";//todo
+        dbDocStore=MapdbDocStore.createOrOpenReadOnly(dbpath);
+
     }
 
     /**
@@ -66,7 +78,23 @@ public class InvertedIndexManager {
      * @param document
      */
     public void addDocument(Document document) {
-        throw new UnsupportedOperationException();
+        List<String> temp=analyzer.analyze(document.getText());
+        int total=invertlist.size();
+        dbDocStore.addDocument(total,document);
+
+        int n=temp.size();
+        for(int i=0;i<n;i++) {
+           if(!invertlist.containsKey(temp.get(i))){
+               List<Integer> list=new ArrayList<Integer>();
+               list.add(total);
+               invertlist.put(temp.get(i),list);
+           }
+        }
+
+
+
+
+        //throw new UnsupportedOperationException();
     }
 
     /**
