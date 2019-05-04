@@ -33,7 +33,7 @@ public class Team10MergeTest {
     invertedmanager.addDocument(doc3);
     invertedmanager.flush(); // segment 1
 
-    Map<String, List<Integer>> expectedlist = new HashMap<>();
+    Map<String, List<Integer>> expectedlist = new TreeMap<>();
     expectedlist.put("what", Arrays.asList(0, 1));
     expectedlist.put("is", Arrays.asList(0, 3));
     expectedlist.put("he", Arrays.asList(0));
@@ -46,7 +46,7 @@ public class Team10MergeTest {
     expectedlist.put("saw", Arrays.asList(2));
     expectedlist.put("you", Arrays.asList(2));
     expectedlist.put("there", Arrays.asList(2, 3));
-    Map<Integer, Document> expecteddocuments = new HashMap<>();
+    Map<Integer, Document> expecteddocuments = new TreeMap<>();
     expecteddocuments.put(0, doc0);
     expecteddocuments.put(1, doc1);
     expecteddocuments.put(2, doc2);

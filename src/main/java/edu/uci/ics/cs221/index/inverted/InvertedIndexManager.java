@@ -507,8 +507,7 @@ public class InvertedIndexManager {
 
     if (!this.segmentMetaData.containsKey(segmentNum)) return null;
     SegmentEntry entry = this.segmentMetaData.get(segmentNum);
-    InvertedIndex inv =
-        InvertedIndex.openInvertList(this.workPath, entry.getName(), entry.getHeaderLen());
+    InvertedIndex inv = entry.openInvertedList(this.workPath);
     return new InvertedIndexSegmentForTest(inv.getAllInvertList(), inv.getAllDocuments());
   }
 }

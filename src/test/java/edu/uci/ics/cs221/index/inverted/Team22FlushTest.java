@@ -83,7 +83,7 @@ public class Team22FlushTest {
                 + " use of graphic records (documents), to store information and make "
                 + "it available, have been listed by Hyslop: "
                 + "A, recording information in documents; B, "
-                + "storing recorded information—documentary items; ");
+                + "storing recorded information-documentary items; ");
     Document doc5 = new Document("A general theory of information retrieval would cover");
 
     ArrayList<Document> seg1Docs = new ArrayList<>();
@@ -98,7 +98,7 @@ public class Team22FlushTest {
     assertEquals(indexManager.getNumSegments(), 2); // should create one segment
 
     checkSegment(0, seg0Docs);
-    checkSegment(1, seg1Docs);
+    checkSegment(1, seg1Docs);//todo
   }
 
   @Test

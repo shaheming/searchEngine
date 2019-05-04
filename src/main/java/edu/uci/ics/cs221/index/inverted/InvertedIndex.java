@@ -34,8 +34,8 @@ class WritePageBuffer {
   }
 
   public WritePageBuffer putInt(int val) {
-    checkFull();
     buffer.putInt(val);
+    checkFull();
     return this;
   }
 
@@ -159,7 +159,7 @@ class InvertedIndexHeaderEntry {
     }
     this.size = buffer.getInt();
     this.ptr = buffer.getInt();
-    //    this.print();
+    //        this.print();
   }
 
   void print() {
@@ -359,16 +359,16 @@ public class InvertedIndex {
     this.readHeader();
     inv.readHeader();
 
-    Iterator<Map.Entry<String, InvertedIndexHeaderEntry>> it1 =
-        this.wordsDicEntries.entrySet().iterator();
-    Iterator<Map.Entry<String, InvertedIndexHeaderEntry>> it2 =
-        inv.wordsDicEntries.entrySet().iterator();
+    Deque<Map.Entry<String, InvertedIndexHeaderEntry>> dq1 =
+        new LinkedList<>(this.wordsDicEntries.entrySet());
+    Deque<Map.Entry<String, InvertedIndexHeaderEntry>> dq2 =
+        new LinkedList<>(inv.wordsDicEntries.entrySet());
     InvertedIndexHeaderEntry entry1;
     InvertedIndexHeaderEntry entry2;
 
-    while (it1.hasNext() && it2.hasNext()) {
-      entry1 = it1.next().getValue();
-      entry2 = it2.next().getValue();
+    while (!dq1.isEmpty() && !dq2.isEmpty()) {
+      entry1 = dq1.peek().getValue();
+      entry2 = dq2.peek().getValue();
       int compare = entry1.getKey().compareTo(entry2.getKey());
       if (compare < 0) {
         copyDocIdToRemoveDelete(
@@ -377,6 +377,7 @@ public class InvertedIndex {
             new LinkedList<>(this.getRemovedDocIdx()),
             this.readDocIds(entry1),
             0);
+        dq1.poll();
 
       } else if (compare > 0) {
         copyDocIdToRemoveDelete(
@@ -384,7 +385,8 @@ public class InvertedIndex {
             entry2.getKey(),
             new LinkedList<>(inv.getRemovedDocIdx()),
             inv.readDocIds(entry2),
-            0);
+            ivL1Size);
+        dq2.poll();
       } else {
         int offset =
             copyDocIdToRemoveDelete(
@@ -399,26 +401,30 @@ public class InvertedIndex {
             new LinkedList<>(inv.getRemovedDocIdx()),
             inv.readDocIds(entry2),
             ivL1Size);
+        dq1.poll();
+        dq2.poll();
       }
     }
-    while (it1.hasNext()) {
+    while (!dq1.isEmpty()) {
 
-      entry1 = it1.next().getValue();
+      entry1 = dq1.peek().getValue();
       copyDocIdToRemoveDelete(
           des,
           entry1.getKey(),
           new LinkedList<>(this.getRemovedDocIdx()),
           this.readDocIds(entry1),
           0);
+      dq1.poll();
     }
-    while (it2.hasNext()) {
-      entry2 = it2.next().getValue();
+    while (!dq2.isEmpty()) {
+      entry2 = dq2.peek().getValue();
       copyDocIdToRemoveDelete(
           des,
           entry2.getKey(),
           new LinkedList<>(inv.getRemovedDocIdx()),
           this.readDocIds(entry2),
           ivL1Size);
+      dq2.poll();
     }
 
     des.flush();
@@ -683,7 +689,7 @@ public class InvertedIndex {
       if (i == pageStart) {
         buffer.position(offset);
       }
-      while (intBuffer.position() > 0) {
+      if (intBuffer.position() > 0) {
         while (intBuffer.remaining() > 0) {
           intBuffer.put(buffer.get());
         }
@@ -699,6 +705,9 @@ public class InvertedIndex {
         if (docIds.size() == entry.getSize()) {
           return docIds;
         }
+      }
+      while (buffer.hasRemaining()) {
+        intBuffer.put(buffer.get());
       }
     }
     return docIds;
