@@ -26,8 +26,9 @@ public class InvertedIndexManager {
     private Analyzer analyzer;
     private String indexFolder;
     private Map<String,List<Integer>> invertlist=new TreeMap<>();
-    private Map<Integer, Document> documents = new TreeMap<>();
     public  DocumentStore dbDocStore;
+    private List<InvertedIndexSegmentForTest> seg_list=new ArrayList<>();
+    private Map<Integer, Document> documents=new TreeMap<>();
     private PageFileChannel pageFileChannel;
     private String dbpath;
     private int seg_counter=0;
@@ -39,7 +40,8 @@ public class InvertedIndexManager {
         this.analyzer=analyzer;
         this.indexFolder=indexFolder;
         checkAndCreateDir(indexFolder);
-        dbpath=indexFolder+"/test.db";
+
+
 
     }
 
@@ -77,11 +79,10 @@ public class InvertedIndexManager {
     }
 
     public void addDocument(Document document) {
-        if(dbDocStore==null)
-            dbDocStore=MapdbDocStore.createWithBulkLoad(dbpath,documents.entrySet().iterator());
         List<String> temp=analyzer.analyze(document.getText());
-        int total=(int)dbDocStore.size(); //global id
-        dbDocStore.addDocument(total,document);//
+        int total=documents.size(); //
+        documents.put(total,document);
+        int after_insert_size=documents.size();
         int n=temp.size();
         for(int i=0;i<n;i++) {
            if(!invertlist.containsKey(temp.get(i))){
@@ -93,20 +94,26 @@ public class InvertedIndexManager {
                invertlist.get(temp.get(i)).add(total);
            }
         }
-        int after_insert_size=invertlist.size();
 
         if(after_insert_size>=DEFAULT_FLUSH_THRESHOLD){
-            seg_counter++;
-            pageFileChannel=PageFileChannel.createOrOpen(set_path_segment(seg_counter));
+            dbpath=indexFolder+"/test"+getNumSegments()+".db";
+            dbDocStore = MapdbDocStore.createWithBulkLoad(dbpath, documents.entrySet().iterator());
+            InvertedIndexSegmentForTest seg_test=new InvertedIndexSegmentForTest(invertlist,documents);
+            seg_list.add(seg_test);
             flush();
-            invertlist.clear();
-            pageFileChannel.close();
+            seg_counter++;
+            documents = new TreeMap<>();
+            invertlist=new TreeMap<>();
+
             if(getNumSegments()>DEFAULT_MERGE_THRESHOLD&&getNumSegments()%2==0)
                 mergeAllSegments();
+            dbDocStore.close();
+
         }
     }
 
     public void flush() {
+        pageFileChannel=PageFileChannel.createOrOpen(set_path_segment(seg_counter));
         Iterator iter=invertlist.entrySet().iterator();
         int n=invertlist.size()*48;//1000*48=48000
         int sum=0;
@@ -129,6 +136,7 @@ public class InvertedIndexManager {
             pageFileChannel.appendAllBytes(buffer_temp);
             buffer_temp.clear();
         }
+        pageFileChannel.close();
     }
 
     public void mergeAllSegments() {
@@ -138,7 +146,8 @@ public class InvertedIndexManager {
         for(int i=1;i<n;i=i+2) {
             PageFileChannel temp1 = PageFileChannel.createOrOpen(set_path_segment(i));
             PageFileChannel temp2 = PageFileChannel.createOrOpen(set_path_segment(i+1));
-
+            ByteBuffer b1=temp1.readAllPages();
+            ByteBuffer b2=temp2.readAllPages();
 
 
             temp1.close();
@@ -159,7 +168,7 @@ public class InvertedIndexManager {
 
 
 
-            
+
 
         }
 
@@ -234,15 +243,9 @@ public class InvertedIndexManager {
         return seg_counter;
     }
 
-    /**
-     * Reads a disk segment into memory based on segmentNum.
-     * This function is mainly used for checking correctness in test cases.
-     *
-     * @param segmentNum n-th segment in the inverted index (start from 0).
-     * @return in-memory data structure with all contents in the index segment, null if segmentNum don't exist.
-     */
     public InvertedIndexSegmentForTest getIndexSegment(int segmentNum) {
-        throw new UnsupportedOperationException();
+        if(seg_list.size()==0) return null;
+        return seg_list.get(segmentNum);
     }
 
 
