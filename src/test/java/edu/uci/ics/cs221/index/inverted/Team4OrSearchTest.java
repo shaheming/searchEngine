@@ -90,11 +90,8 @@ public class Team4OrSearchTest {
   @After
   public void after() throws Exception {
     Path rootPath = Paths.get(FOLDER);
-    Files.walk(rootPath)
-        .sorted(Comparator.reverseOrder())
-        .map(Path::toFile)
-        .peek(System.out::println)
-        .forEach(File::delete);
+    Files.walk(rootPath).sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
+
     Files.deleteIfExists(rootPath);
   }
 }

@@ -139,8 +139,6 @@ class InvertedIndexHeaderEntry {
     char[] strArray = new char[InvertedIndexHeaderEntry.keyByteSize];
     for (int i = 0; i < InvertedIndexHeaderEntry.keyByteSize; i++) {
       char c = (char) buffer.get();
-      if (c < 'a' || c > 'z') {}
-
       if (c == '\0') {
         this.key = new String(Arrays.copyOfRange(strArray, 0, i));
         break;
@@ -161,7 +159,7 @@ class InvertedIndexHeaderEntry {
     }
     this.size = buffer.getInt();
     this.ptr = buffer.getInt();
-    this.print();
+    //    this.print();
   }
 
   void print() {
@@ -198,10 +196,11 @@ public class InvertedIndex {
   private Integer headerNum = 0;
   private WritePageBuffer writeBuffer;
   private Map<String, InvertedIndexHeaderEntry> wordsDicEntries = new TreeMap<>();
-  private ArrayList<Integer> removedDocIds = new ArrayList<>();
+  private Set<Integer> removedDocIdx = new TreeSet<>();
 
-  public void setRemovedDocIds(ArrayList<Integer> removedList) {
-    this.removedDocIds.addAll(removedList);
+  public InvertedIndex setRemovedDocIdx(ArrayList<Integer> removedList) {
+    this.removedDocIdx = new TreeSet<>(removedList);
+    return this;
   }
 
   private void InitFilePath(String dir, String name) {
@@ -305,14 +304,6 @@ public class InvertedIndex {
     return this.docStore.iterator();
   }
 
-  public void addInvertListItem(String key, Integer docId) {
-    if (!this.invertList.containsKey(key)) {
-      invertList.put(key, new ArrayList<>(Arrays.asList(docId)));
-    } else {
-      invertList.get(key).add(docId);
-    }
-  }
-
   private static Integer copyDocToRemoveDelete(
       InvertedIndex src, InvertedIndex des, Deque<Integer> removedDq) {
     Iterator<Map.Entry<Integer, Document>> it = src.docIterator();
@@ -347,10 +338,11 @@ public class InvertedIndex {
     }
     if (des.invertList.containsKey(key)) {
       des.invertList.get(key).addAll(newDocIds);
+      return des.invertList.get(key).size();
     } else {
-      des.invertList.put(key, newDocIds);
+      if (!newDocIds.isEmpty()) des.invertList.put(key, newDocIds);
+      return 0;
     }
-    return des.invertList.get(key).size();
   }
 
   // todo cal doc size
@@ -360,8 +352,8 @@ public class InvertedIndex {
     this.openReadOnlyDocDb();
     inv.openReadOnlyDocDb();
     // db1
-    Integer ivL1Size = copyDocToRemoveDelete(this, des, new LinkedList<>(this.getRemovedDocIds()));
-    Integer ivL2Size = copyDocToRemoveDelete(inv, des, new LinkedList<>(inv.getRemovedDocIds()));
+    Integer ivL1Size = copyDocToRemoveDelete(this, des, new LinkedList<>(this.getRemovedDocIdx()));
+    Integer ivL2Size = copyDocToRemoveDelete(inv, des, new LinkedList<>(inv.getRemovedDocIdx()));
 
     // invertList
     this.readHeader();
@@ -382,7 +374,7 @@ public class InvertedIndex {
         copyDocIdToRemoveDelete(
             des,
             entry1.getKey(),
-            new LinkedList<>(this.getRemovedDocIds()),
+            new LinkedList<>(this.getRemovedDocIdx()),
             this.readDocIds(entry1),
             0);
 
@@ -390,7 +382,7 @@ public class InvertedIndex {
         copyDocIdToRemoveDelete(
             des,
             entry2.getKey(),
-            new LinkedList<>(inv.getRemovedDocIds()),
+            new LinkedList<>(inv.getRemovedDocIdx()),
             inv.readDocIds(entry2),
             0);
       } else {
@@ -398,13 +390,13 @@ public class InvertedIndex {
             copyDocIdToRemoveDelete(
                 des,
                 entry1.getKey(),
-                new LinkedList<>(this.getRemovedDocIds()),
+                new LinkedList<>(this.getRemovedDocIdx()),
                 this.readDocIds(entry1),
                 0);
         copyDocIdToRemoveDelete(
             des,
             entry2.getKey(),
-            new LinkedList<>(inv.getRemovedDocIds()),
+            new LinkedList<>(inv.getRemovedDocIdx()),
             inv.readDocIds(entry2),
             ivL1Size);
       }
@@ -415,7 +407,7 @@ public class InvertedIndex {
       copyDocIdToRemoveDelete(
           des,
           entry1.getKey(),
-          new LinkedList<>(this.getRemovedDocIds()),
+          new LinkedList<>(this.getRemovedDocIdx()),
           this.readDocIds(entry1),
           0);
     }
@@ -424,7 +416,7 @@ public class InvertedIndex {
       copyDocIdToRemoveDelete(
           des,
           entry2.getKey(),
-          new LinkedList<>(inv.getRemovedDocIds()),
+          new LinkedList<>(inv.getRemovedDocIdx()),
           this.readDocIds(entry2),
           ivL1Size);
     }
@@ -533,7 +525,7 @@ public class InvertedIndex {
     return map;
   }
 
-  public Map<String, ArrayList<Integer>> searchWords(ArrayList<String> words) {
+  public Map<String, ArrayList<Integer>> searchWords(ArrayList<String> words) throws Exception {
     //    System.out.println("Search words: " + Arrays.toString(words.toArray()));
     Map<String, ArrayList<Integer>> synchronizedMap = Collections.synchronizedMap(new HashMap<>());
 
@@ -580,7 +572,7 @@ public class InvertedIndex {
       }
       checker.and(tmpChecker);
     }
-    for (int i : this.removedDocIds) {
+    for (int i : this.removedDocIdx) {
       checker.set(i, false);
     }
     return checker;
@@ -596,7 +588,7 @@ public class InvertedIndex {
       }
       checker.or(tmpChecker);
     }
-    for (int i : this.removedDocIds) {
+    for (int i : this.removedDocIdx) {
       checker.set(i, false);
     }
     return checker;
@@ -608,9 +600,14 @@ public class InvertedIndex {
     // read header
     this.readHeader();
     //    System.out.println("Search " + Arrays.toString(words.toArray()) + " " + query);
-    Map<String, ArrayList<Integer>> map = new HashMap<>(this.searchWords(words));
+    Map<String, ArrayList<Integer>> map = new HashMap<>();
     // search header
-    map.putAll(this.searchWords(words));
+    try {
+      map.putAll(this.searchWords(words));
+    } catch (Exception e) {
+      return new HashMap<>();
+    }
+
     if (map.size() == 0) return new HashMap<>();
 
     BitSet checker;
@@ -626,14 +623,26 @@ public class InvertedIndex {
         docIdx.add(i);
       }
     }
-    //    System.out.println( Arrays.toString(words.toArray()) + " in"+
-    // Arrays.toString(docIdx.toArray()) + "docs");
-    System.out.println("Search " + this.segmentName + "finished, find " + docIdx.size() + " docs");
-    return this.readDocuments(docIdx);
+    System.out.println(
+        "Search "
+            + Arrays.toString(words.toArray())
+            + " "
+            + query
+            + " "
+            + this.segmentName
+            + ", find "
+            + docIdx.size()
+            + " docs");
+
+    try {
+      return this.readDocuments(docIdx);
+    } catch (Exception e) {
+      System.out.println("read docs idx: " + Arrays.toString(docIdx.toArray()) + " failed");
+      return new HashMap<>();
+    }
   }
 
-  public Map<String, Document> readDocuments(ArrayList<Integer> idex) {
-    //    System.out.println("Read doc Id: " + idex);
+  public Map<String, Document> readDocuments(ArrayList<Integer> idex) throws InterruptedException {
     this.openReadOnlyDocDb();
     Map<String, Document> synchronizedMap = Collections.synchronizedMap(new HashMap<>());
 
@@ -648,26 +657,13 @@ public class InvertedIndex {
           };
       exec.execute(runnableTask);
     }
-    // todo fix set bug
     exec.shutdown();
-    try {
-      while (!exec.awaitTermination(1L, TimeUnit.HOURS)) {
-        System.out.println("Not yet. Still waiting for termination");
-      }
-
-    } catch (InterruptedException e) {
-
+    while (!exec.awaitTermination(1L, TimeUnit.HOURS)) {
+      System.out.println("Not yet. Still waiting for termination");
     }
+
     return synchronizedMap;
   }
-
-  //  public ArrayList<Document> searchAndQuery(ArrayList<String> words) {
-  //    return this.searchQuery(words, "AND");
-  //  }
-
-  //  public ArrayList<Document> searchOrQuery(ArrayList<String> words) {
-  //    return this.searchQuery(words, "OR");
-  //  }
 
   private ArrayList<Integer> readDocIds(InvertedIndexHeaderEntry entry) {
     int pageStart = entry.getPtr() / PageFileChannel.PAGE_SIZE;
@@ -712,18 +708,22 @@ public class InvertedIndex {
     return basePath;
   }
 
-  public ArrayList<Integer> getRemovedDocIds() {
-    return removedDocIds;
+  public LinkedList<Integer> getRemovedDocIdx() {
+    return new LinkedList<Integer>(removedDocIdx);
   }
 
   public int getDocNumFromDb() {
     if (this.docStore == null) throw new RuntimeException("Db is not been open");
-    int docNum = (int) this.docStore.size();
-    return docNum;
+    return (int) this.docStore.size();
   }
-
+  // random used to avoid multi thread conflicts when creating the segment file
   private String getTimeStamp() {
-    return (new Timestamp(System.currentTimeMillis())).toString().replace(" ", "_").replace("-", "")
+    return (new Timestamp(System.currentTimeMillis()))
+            .toString()
+            .replace(" ", "_")
+            .replace("-", "")
+            .replace(":", "")
+            .replace(".", "")
         + "_"
         + (int) (Math.random() * 1000 + 1) % 1000;
   }
@@ -743,8 +743,29 @@ public class InvertedIndex {
     if (this.docStore == null) this.openReadOnlyDocDb();
     Map<Integer, Document> docs = new HashMap<>();
     for (int i = 0; i < (int) this.docStore.size(); i++) {
-      docs.put(i, this.docStore.getDocument(i));
+      if (!this.removedDocIdx.contains(i)) docs.put(i, this.docStore.getDocument(i));
     }
     return docs;
+  }
+
+  public ArrayList<Integer> deleteDocuments(String keyword) {
+    ArrayList<String> keywords = new ArrayList<>();
+
+    keywords.add(keyword);
+
+    if (this.wordsDicEntries.isEmpty()) {
+      this.readHeader();
+    }
+    try {
+      Map<String, ArrayList<Integer>> wordsDocMap = this.searchWords(keywords);
+      for (Map.Entry<String, ArrayList<Integer>> entry : wordsDocMap.entrySet()) {
+        this.removedDocIdx.addAll(entry.getValue());
+      }
+
+    } catch (Exception e) {
+      System.err.println("Delete keyword " + keyword + " errors!");
+      return new ArrayList<>();
+    }
+    return new ArrayList<>(this.removedDocIdx);
   }
 }

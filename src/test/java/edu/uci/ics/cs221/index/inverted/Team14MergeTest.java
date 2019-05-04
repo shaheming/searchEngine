@@ -91,11 +91,8 @@ public class Team14MergeTest {
   @After
   public void tear() throws Exception {
     Path rootPath = Paths.get(path);
-    Files.walk(rootPath)
-        .sorted(Comparator.reverseOrder())
-        .map(Path::toFile)
-        .peek(System.out::println)
-        .forEach(File::delete);
+    Files.walk(rootPath).sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
+
     Files.deleteIfExists(rootPath);
     InvertedIndexManager.DEFAULT_FLUSH_THRESHOLD = 1000;
     InvertedIndexManager.DEFAULT_MERGE_THRESHOLD = 8;

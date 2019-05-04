@@ -66,11 +66,9 @@ public class Team1StressTest {
    */
   @Test(timeout = 300000)
   public void test1() throws Exception {
-    for (Document doc : largeDocs)
-      iim.addDocument(doc);
+    for (Document doc : largeDocs) iim.addDocument(doc);
 
     assertEquals(iim.getNumSegments(), 2);
-
     iim.mergeAllSegments();
     TimeUnit.SECONDS.sleep(5);
     assertEquals(iim.getNumSegments(), 1);
@@ -119,11 +117,8 @@ public class Team1StressTest {
    */
   private void deleteDirectory(Path path) throws IOException {
     Path rootPath = path;
-    Files.walk(rootPath)
-        .sorted(Comparator.reverseOrder())
-        .map(Path::toFile)
-        .peek(System.out::println)
-        .forEach(File::delete);
+    Files.walk(rootPath).sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
+
     Files.deleteIfExists(rootPath);
   }
 

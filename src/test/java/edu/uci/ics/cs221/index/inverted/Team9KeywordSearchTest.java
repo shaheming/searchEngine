@@ -2,7 +2,6 @@ package edu.uci.ics.cs221.index.inverted;
 
 import edu.uci.ics.cs221.analysis.ComposableAnalyzer;
 import edu.uci.ics.cs221.analysis.PorterStemmer;
-import edu.uci.ics.cs221.analysis.WordBreakTokenizer;
 import edu.uci.ics.cs221.analysis.WordBreakTokenizerSha;
 import edu.uci.ics.cs221.storage.Document;
 import org.junit.After;
@@ -51,11 +50,8 @@ public class Team9KeywordSearchTest {
     // local storage folder is a flat folder which doesn't contain sub folder
     // In case of any exception, that will be thrown out.
     Path rootPath = Paths.get(indexFolder);
-    Files.walk(rootPath)
-        .sorted(Comparator.reverseOrder())
-        .map(Path::toFile)
-        .peek(System.out::println)
-        .forEach(File::delete);
+    Files.walk(rootPath).sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
+
     Files.deleteIfExists(rootPath);
   }
 

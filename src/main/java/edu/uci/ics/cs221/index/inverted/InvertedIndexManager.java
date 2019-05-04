@@ -1,5 +1,6 @@
 package edu.uci.ics.cs221.index.inverted;
 // todo
+
 import com.google.common.base.Preconditions;
 import edu.uci.ics.cs221.analysis.Analyzer;
 import edu.uci.ics.cs221.storage.Document;
@@ -19,18 +20,56 @@ import java.util.concurrent.TimeUnit;
 class SegmentEntry {
   private String name;
   private Integer headerLen;
+  private Integer docNum;
+  private Set<Integer> removedDocsIdx = new TreeSet<>();
+
+  Integer getDocNum() {
+    return docNum;
+  }
+
+  void addRemovedDocsIdx(ArrayList<Integer> removedDocsIdx) {
+    this.removedDocsIdx.addAll(removedDocsIdx);
+  }
+
+  ArrayList<Integer> getRemovedDocsIdx() {
+    return new ArrayList<Integer>(removedDocsIdx);
+  }
 
   public String getName() {
     return name;
   }
 
-  public Integer getHeaderLen() {
+  Integer getHeaderLen() {
     return headerLen;
   }
 
-  public SegmentEntry(String name, Integer headerLen) {
+  SegmentEntry(String name, Integer headerLen, Integer docNum) {
     this.name = name;
     this.headerLen = headerLen;
+    this.docNum = docNum;
+  }
+
+  public SegmentEntry(String name, Integer headerLen, ArrayList<Integer> removedDocsIdx) {
+    this.name = name;
+    this.headerLen = headerLen;
+    this.removedDocsIdx.addAll(removedDocsIdx);
+  }
+
+  String serilizeRmovedList() {
+    if (removedDocsIdx.size() == 0) return "" + -1 + "\n";
+    else {
+      String str = "";
+      Iterator<Integer> it = this.removedDocsIdx.iterator();
+      while (it.hasNext()) {
+        str = str + it.next() + " ";
+      }
+      return str + "\n";
+    }
+  }
+
+  InvertedIndex openInvertedList(String workPath) {
+    return InvertedIndex.openInvertList(workPath, this.getName(), this.headerLen)
+        .setRemovedDocIdx(this.getRemovedDocsIdx());
   }
 }
 
@@ -67,8 +106,6 @@ public class InvertedIndexManager {
       Collections.synchronizedMap(new TreeMap<>());
   private String workPath;
 
-  // todo 4. key the metadate in memory used to do search
-  // todo 5. the invert list is sorted by time and use a indexArray to map No. seg to seg name then
   // to the segmentMetaData
   private InvertedIndexManager(String indexFolder, Analyzer analyzer) {
     this.analyzer = analyzer;
@@ -79,11 +116,25 @@ public class InvertedIndexManager {
   public static void loadMetaData(InvertedIndexManager inv, Path filePath) {
     try {
       List<String> lines = Files.readAllLines(filePath);
+      int TOTAL = Integer.valueOf(lines.get(0).split("\\s")[0]);
+      int index = 0;
       for (String line : lines.subList(1, lines.size())) {
         String[] cols = line.split("\\s");
-        inv.segmentMetaData.put(
-            Integer.valueOf(cols[0]), new SegmentEntry(cols[1], Integer.valueOf(cols[2])));
-        System.out.println("read segment: " + cols[0] + " " + cols[1] + " info");
+        if (inv.segmentMetaData.size() < TOTAL) {
+
+          inv.segmentMetaData.put(
+              Integer.valueOf(cols[0]),
+              new SegmentEntry(cols[1], Integer.valueOf(cols[2]), Integer.valueOf(cols[3])));
+          System.out.println("read segment: " + cols[0] + " " + cols[1] + " info");
+        } else {
+          ArrayList<Integer> removedDocs = new ArrayList<>();
+          for (String col : cols) {
+            if (Integer.valueOf(col) == -1) break;
+            else removedDocs.add(Integer.valueOf(col));
+          }
+          inv.segmentMetaData.get(index).addRemovedDocsIdx(removedDocs);
+          index++;
+        }
       }
     } catch (IOException e) {
       throw new UncheckedIOException(e);
@@ -99,7 +150,7 @@ public class InvertedIndexManager {
   private void writeIndexMetaData() {
     try {
       BufferedWriter writer = new BufferedWriter(new FileWriter(this.workPath + "/metadata.txt"));
-
+      String removedList = "";
       synchronized (this.segmentMetaData) {
         writer.write(this.segmentMetaData.size() + "\n");
         for (Map.Entry<Integer, SegmentEntry> entry : this.segmentMetaData.entrySet()) {
@@ -109,9 +160,13 @@ public class InvertedIndexManager {
                   + entry.getValue().getName()
                   + " "
                   + entry.getValue().getHeaderLen()
+                  + " "
+                  + entry.getValue().getDocNum()
                   + "\n");
+          removedList = removedList + entry.getValue().serilizeRmovedList();
         }
       }
+      writer.write(removedList);
       writer.close();
     } catch (IOException e) {
       throw new UncheckedIOException(e);
@@ -164,7 +219,9 @@ public class InvertedIndexManager {
     this.segmentMetaData.put(
         this.segmentMetaData.size(),
         new SegmentEntry(
-            this.currInvertIndex.getSegmentName(), this.currInvertIndex.getHeaderLen()));
+            this.currInvertIndex.getSegmentName(),
+            this.currInvertIndex.getHeaderLen(),
+            this.currInvertIndex.getDocNum()));
     this.writeIndexMetaData();
     this.currInvertIndex = new InvertedIndex(oldInvertList.getBasePath());
 
@@ -194,8 +251,8 @@ public class InvertedIndexManager {
         Integer desSegId) {
       super(name);
       this.put = s1.getName() + " " + s2.getName();
-      this.inv1 = InvertedIndex.openInvertList(path, s1.getName(), s1.getHeaderLen());
-      this.inv2 = InvertedIndex.openInvertList(path, s2.getName(), s2.getHeaderLen());
+      this.inv1 = s1.openInvertedList(path);
+      this.inv2 = s2.openInvertedList(path);
       this.desSegId = desSegId;
       this.metaData = metaData;
     }
@@ -205,7 +262,8 @@ public class InvertedIndexManager {
         System.out.println(
             "Start merge: " + this.put + ",thread name is ：" + Thread.currentThread().getName());
         InvertedIndex inv = inv1.merge(inv2);
-        SegmentEntry entry = new SegmentEntry(inv.getSegmentName(), inv.getHeaderLen());
+        SegmentEntry entry =
+            new SegmentEntry(inv.getSegmentName(), inv.getHeaderLen(), inv.getDocNum());
 
         synchronized (this.metaData) {
           this.metaData.put(this.desSegId, entry);
@@ -225,7 +283,9 @@ public class InvertedIndexManager {
   public void mergeAllSegments() {
     // merge only happens at even number of segments
     Preconditions.checkArgument(getNumSegments() % 2 == 0);
-
+    if (this.segmentMetaData.isEmpty()) {
+      loadMetaData(this, Paths.get(this.workPath + "/metadata.txt"));
+    }
     Map<Integer, SegmentEntry> synchronizedMap = Collections.synchronizedMap(new TreeMap<>());
     // do some thing
     if (this.segmentMetaData.size() > 2) {
@@ -234,7 +294,7 @@ public class InvertedIndexManager {
       synchronized (this.segmentMetaData) {
         Iterator<Map.Entry<Integer, SegmentEntry>> it = this.segmentMetaData.entrySet().iterator();
         while (it.hasNext()) {
-          exec.execute(
+          exec.submit(
               new ParallelMerge(
                   "Thread: " + desSegId,
                   this.workPath,
@@ -257,12 +317,11 @@ public class InvertedIndexManager {
       Iterator<Map.Entry<Integer, SegmentEntry>> it = this.segmentMetaData.entrySet().iterator();
       SegmentEntry s1 = it.next().getValue();
       SegmentEntry s2 = it.next().getValue();
-      InvertedIndex inv1 =
-          InvertedIndex.openInvertList(this.workPath, s1.getName(), s1.getHeaderLen());
-      InvertedIndex inv2 =
-          InvertedIndex.openInvertList(this.workPath, s2.getName(), s2.getHeaderLen());
+      InvertedIndex inv1 = s1.openInvertedList(this.workPath);
+      InvertedIndex inv2 = s2.openInvertedList(this.workPath);
       InvertedIndex inv = inv1.merge(inv2);
-      SegmentEntry entry = new SegmentEntry(inv.getSegmentName(), inv.getHeaderLen());
+      SegmentEntry entry =
+          new SegmentEntry(inv.getSegmentName(), inv.getHeaderLen(), inv.getDocNum());
 
       synchronized (synchronizedMap) {
         synchronizedMap.put(0, entry);
@@ -327,6 +386,7 @@ public class InvertedIndexManager {
             for (SegmentEntry entry : group) {
               Map<String, Document> dos =
                   InvertedIndex.openInvertList(this.workPath, entry.getName(), entry.getHeaderLen())
+                      .setRemovedDocIdx(entry.getRemovedDocsIdx())
                       .searchQuery(token, searchMethod);
               synchronized (synchronizedMap) {
                 synchronizedMap.putAll(dos);
@@ -337,12 +397,12 @@ public class InvertedIndexManager {
     }
     exec.shutdown();
     try {
+
       while (!exec.awaitTermination(1L, TimeUnit.HOURS)) {
         System.out.println("Not yet. Still waiting for termination");
       }
 
-    } catch (InterruptedException e) {
-
+    } catch (Exception e) {
     }
     ArrayList<Document> res = new ArrayList<>(synchronizedMap.values());
     return res.iterator();
@@ -362,13 +422,15 @@ public class InvertedIndexManager {
 
   /** Iterates through all the documents in all disk segments. */
   public Iterator<Document> documentIterator() {
-    loadMetaData(this, Paths.get(this.workPath + "/metadata.txt"));
+    if (this.segmentMetaData.isEmpty()) {
+      loadMetaData(this, Paths.get(this.workPath + "/metadata.txt"));
+    }
     ArrayList<Document> docs = new ArrayList<>();
     for (SegmentEntry entry : this.segmentMetaData.values()) {
-      InvertedIndex inv =
-          InvertedIndex.openInvertList(this.workPath, entry.getName(), entry.getHeaderLen());
+      InvertedIndex inv = entry.openInvertedList(this.workPath);
       docs.addAll(inv.getAllDocuments().values());
     }
+    this.segmentMetaData.clear();
     return docs.iterator();
   }
 
@@ -378,7 +440,38 @@ public class InvertedIndexManager {
    * @param keyword
    */
   public void deleteDocuments(String keyword) {
-    throw new UnsupportedOperationException();
+    ExecutorService exec = Executors.newFixedThreadPool(4);
+    Map<Integer, ArrayList<Integer>> synchronizedMap = Collections.synchronizedMap(new TreeMap<>());
+    if (this.segmentMetaData.isEmpty()) {
+      loadMetaData(this, Paths.get(this.workPath + "/metadata.txt"));
+    }
+    synchronized (this.segmentMetaData) {
+      for (Map.Entry<Integer, SegmentEntry> entry : this.segmentMetaData.entrySet()) {
+        Runnable runnableTask =
+            () -> {
+              ArrayList<Integer> removedDocIds =
+                  entry.getValue().openInvertedList(this.workPath).deleteDocuments(keyword);
+              synchronized (synchronizedMap) {
+                synchronizedMap.put(entry.getKey(), removedDocIds);
+              }
+              this.flush();
+            };
+        exec.execute(runnableTask);
+      }
+    }
+    exec.shutdown();
+    try {
+      while (!exec.awaitTermination(1L, TimeUnit.HOURS)) {
+        System.out.println("Not yet. Still waiting for termination");
+      }
+    } catch (Exception e) {
+    }
+    synchronized (this.segmentMetaData) {
+      for (Map.Entry<Integer, ArrayList<Integer>> entry : synchronizedMap.entrySet()) {
+        this.segmentMetaData.get(entry.getKey()).addRemovedDocsIdx(entry.getValue());
+      }
+    }
+    this.writeIndexMetaData();
   }
 
   /**
@@ -405,7 +498,9 @@ public class InvertedIndexManager {
    */
   public InvertedIndexSegmentForTest getIndexSegment(int segmentNum) {
     try {
-      loadMetaData(this, Paths.get(this.workPath + "/metadata.txt"));
+      if (this.segmentMetaData.isEmpty()) {
+        loadMetaData(this, Paths.get(this.workPath + "/metadata.txt"));
+      }
     } catch (UncheckedIOException e) {
       return null;
     }

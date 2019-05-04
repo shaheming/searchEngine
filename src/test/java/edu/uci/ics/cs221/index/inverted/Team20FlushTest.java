@@ -156,11 +156,8 @@ public class Team20FlushTest {
 
     String SRC_FOLDER = "./index/Team20FlushTest/";
     Path rootPath = Paths.get(SRC_FOLDER);
-    Files.walk(rootPath)
-        .sorted(Comparator.reverseOrder())
-        .map(Path::toFile)
-        .peek(System.out::println)
-        .forEach(File::delete);
+    Files.walk(rootPath).sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
+
     Files.deleteIfExists(rootPath);
   }
 }

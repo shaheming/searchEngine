@@ -117,11 +117,8 @@ public class Team10MergeTest {
   @After
   public void clean() throws Exception {
     Path rootPath = Paths.get(path);
-    Files.walk(rootPath)
-        .sorted(Comparator.reverseOrder())
-        .map(Path::toFile)
-        .peek(System.out::println)
-        .forEach(File::delete);
+    Files.walk(rootPath).sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
+
     Files.deleteIfExists(rootPath);
   }
 }

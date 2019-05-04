@@ -31,11 +31,8 @@ public class Team19FlushTest {
   @After
   public void cleanup() throws Exception {
     Path rootPath = Paths.get(file);
-    Files.walk(rootPath)
-        .sorted(Comparator.reverseOrder())
-        .map(Path::toFile)
-        .peek(System.out::println)
-        .forEach(File::delete);
+    Files.walk(rootPath).sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
+
     Files.deleteIfExists(rootPath);
 
     iim.DEFAULT_FLUSH_THRESHOLD = 1000;

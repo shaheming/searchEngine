@@ -95,11 +95,8 @@ public class Team18FlushTest {
   @After
   public void clear() throws Exception {
     Path rootPath = Paths.get("./index/Team18FlushTest");
-    Files.walk(rootPath)
-        .sorted(Comparator.reverseOrder())
-        .map(Path::toFile)
-        .peek(System.out::println)
-        .forEach(File::delete);
+    Files.walk(rootPath).sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
+
     Files.deleteIfExists(rootPath);
   }
 }

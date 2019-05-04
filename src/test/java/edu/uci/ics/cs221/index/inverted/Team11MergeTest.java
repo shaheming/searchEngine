@@ -48,11 +48,8 @@ public class Team11MergeTest {
     InvertedIndexManager.DEFAULT_MERGE_THRESHOLD = 8;
 
     Path rootPath = Paths.get(indexPath);
-    Files.walk(rootPath)
-        .sorted(Comparator.reverseOrder())
-        .map(Path::toFile)
-        .peek(System.out::println)
-        .forEach(File::delete);
+    Files.walk(rootPath).sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
+
     Files.deleteIfExists(rootPath);
   }
 

@@ -20,7 +20,6 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 
-import static java.lang.System.exit;
 import static org.junit.Assert.assertEquals;
 
 public class Team2StressTest {
@@ -133,11 +132,8 @@ public class Team2StressTest {
 
   static boolean delAllFile(String path) throws Exception {
     Path rootPath = Paths.get(path);
-    Files.walk(rootPath)
-        .sorted(Comparator.reverseOrder())
-        .map(Path::toFile)
-        .peek(System.out::println)
-        .forEach(File::delete);
+    Files.walk(rootPath).sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
+
     Files.deleteIfExists(rootPath);
     return true;
   }

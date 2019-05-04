@@ -43,11 +43,8 @@ public class Team7AndSearchTest {
   @After
   public void after() throws Exception {
     Path rootPath = Paths.get(PATH);
-    Files.walk(rootPath)
-        .sorted(Comparator.reverseOrder())
-        .map(Path::toFile)
-        .peek(System.out::println)
-        .forEach(File::delete);
+    Files.walk(rootPath).sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
+
     Files.deleteIfExists(rootPath);
   }
 
