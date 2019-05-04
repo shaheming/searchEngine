@@ -1,5 +1,6 @@
 package edu.uci.ics.cs221.index.inverted;
 
+import com.google.common.base.Preconditions;
 import edu.uci.ics.cs221.storage.Document;
 import edu.uci.ics.cs221.storage.DocumentStore;
 import edu.uci.ics.cs221.storage.MapdbDocStore;
@@ -11,6 +12,9 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.sql.Timestamp;
 import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 class WritePageBuffer {
   private ByteBuffer buffer1 = ByteBuffer.allocate(PageFileChannel.PAGE_SIZE + 100);
@@ -24,13 +28,13 @@ class WritePageBuffer {
   }
 
   public WritePageBuffer putChar(char val) {
-    checkFill();
+    checkFull();
     buffer.putChar(val);
     return this;
   }
 
   public WritePageBuffer putInt(int val) {
-    checkFill();
+    checkFull();
     buffer.putInt(val);
     return this;
   }
@@ -39,7 +43,7 @@ class WritePageBuffer {
     int n = src.remaining();
     for (int i = 0; i < n; i++) {
       if (buffer.position() >= this.limit) {
-        checkFill();
+        checkFull();
       }
       buffer.put(src.get());
     }
@@ -48,11 +52,11 @@ class WritePageBuffer {
 
   public WritePageBuffer put(byte b) {
     buffer.put(b);
-    checkFill();
+    checkFull();
     return this;
   }
 
-  private void checkFill() {
+  private void checkFull() {
     if (buffer.position() >= this.limit) {
       ByteBuffer bufferOld = buffer;
       if (buffer == buffer1) {
@@ -170,7 +174,7 @@ class InvertedIndexHeaderEntry {
 
 public class InvertedIndex {
   private Integer docNum = 0;
-  private Map<String, ArrayList<Integer>> invertList = new TreeMap<>();
+  private Map<String, List<Integer>> invertList = new TreeMap<>();
   private String invertListPath;
   private String invertListDir;
   private String docStorePath;
@@ -259,14 +263,14 @@ public class InvertedIndex {
     this.calHeaderLen();
     Integer curListPtr = this.headerLen;
     InvertedIndexHeaderEntry headerEntry = new InvertedIndexHeaderEntry();
-    for (Map.Entry<String, ArrayList<Integer>> entry : this.invertList.entrySet()) {
+    for (Map.Entry<String, List<Integer>> entry : this.invertList.entrySet()) {
       headerEntry.setKey(entry.getKey());
       headerEntry.setSize(entry.getValue().size());
       headerEntry.setPtr(curListPtr);
       curListPtr += entry.getValue().size() * 4;
       headerEntry.writeToMyByteBuffer(this.writeBuffer);
     }
-    for (Map.Entry<String, ArrayList<Integer>> entry : this.invertList.entrySet()) {
+    for (Map.Entry<String, List<Integer>> entry : this.invertList.entrySet()) {
       for (Integer i : entry.getValue()) {
         writeBuffer.putInt(i);
       }
@@ -279,8 +283,11 @@ public class InvertedIndex {
   }
 
   public boolean openReadOnlyDocDb() {
-    this.docStore = MapdbDocStore.createOrOpenReadOnly(this.docStorePath);
-    return true;
+    if (this.docStore != null) return false;
+    else {
+      this.docStore = MapdbDocStore.createOrOpenReadOnly(this.docStorePath);
+      return true;
+    }
   }
 
   public Iterator<Map.Entry<Integer, Document>> docIterator() {
@@ -342,8 +349,8 @@ public class InvertedIndex {
     this.openReadOnlyDocDb();
     inv.openReadOnlyDocDb();
     // db1
-    Integer ivL1Size = copyDocToRemoveDelete(this, des, new LinkedList(this.getRemovedDocIds()));
-    Integer ivL2Size = copyDocToRemoveDelete(inv, des, new LinkedList(inv.getRemovedDocIds()));
+    Integer ivL1Size = copyDocToRemoveDelete(this, des, new LinkedList<>(this.getRemovedDocIds()));
+    Integer ivL2Size = copyDocToRemoveDelete(inv, des, new LinkedList<>(inv.getRemovedDocIds()));
 
     // invertList
     this.readHeader();
@@ -364,7 +371,7 @@ public class InvertedIndex {
         copyDocIdToRemoveDelete(
             des,
             entry1.getKey(),
-            new LinkedList(this.getRemovedDocIds()),
+            new LinkedList<>(this.getRemovedDocIds()),
             this.readDocIds(entry1),
             0);
 
@@ -372,7 +379,7 @@ public class InvertedIndex {
         copyDocIdToRemoveDelete(
             des,
             entry2.getKey(),
-            new LinkedList(inv.getRemovedDocIds()),
+            new LinkedList<>(inv.getRemovedDocIds()),
             inv.readDocIds(entry2),
             0);
       } else {
@@ -380,13 +387,13 @@ public class InvertedIndex {
             copyDocIdToRemoveDelete(
                 des,
                 entry1.getKey(),
-                new LinkedList(this.getRemovedDocIds()),
+                new LinkedList<>(this.getRemovedDocIds()),
                 this.readDocIds(entry1),
                 0);
         copyDocIdToRemoveDelete(
             des,
             entry2.getKey(),
-            new LinkedList(inv.getRemovedDocIds()),
+            new LinkedList<>(inv.getRemovedDocIds()),
             inv.readDocIds(entry2),
             ivL1Size);
       }
@@ -397,7 +404,7 @@ public class InvertedIndex {
       copyDocIdToRemoveDelete(
           des,
           entry1.getKey(),
-          new LinkedList(this.getRemovedDocIds()),
+          new LinkedList<>(this.getRemovedDocIds()),
           this.readDocIds(entry1),
           0);
     }
@@ -406,7 +413,7 @@ public class InvertedIndex {
       copyDocIdToRemoveDelete(
           des,
           entry2.getKey(),
-          new LinkedList(inv.getRemovedDocIds()),
+          new LinkedList<>(inv.getRemovedDocIds()),
           this.readDocIds(entry2),
           ivL1Size);
     }
@@ -422,7 +429,10 @@ public class InvertedIndex {
    */
   public static InvertedIndex openInvertList(
       String indexFolder, String indexName, Integer headerLen) {
-    return new InvertedIndex(indexFolder, indexName, headerLen);
+
+    InvertedIndex inv = new InvertedIndex(indexFolder, indexName, headerLen);
+    inv.openReadOnlyDocDb();
+    return inv;
   }
 
   // todo fix two many doc problem
@@ -500,7 +510,147 @@ public class InvertedIndex {
     this.headerNum = this.wordsDicEntries.size();
   }
 
-  public ArrayList<Integer> readDocIds(InvertedIndexHeaderEntry entry) {
+  public Map<String, ArrayList<Integer>> searchWord(InvertedIndexHeaderEntry entry) {
+    Preconditions.checkNotNull(wordsDicEntries);
+    ArrayList<Integer> res = this.readDocIds(entry);
+    Map<String, ArrayList<Integer>> map = new HashMap<>();
+    map.put(entry.getKey(), res);
+    return map;
+  }
+
+  public Map<String, ArrayList<Integer>> searchWords(ArrayList<String> words) {
+    //    System.out.println("Search words: " + Arrays.toString(words.toArray()));
+    Map<String, ArrayList<Integer>> synchronizedMap = Collections.synchronizedMap(new HashMap<>());
+
+    ExecutorService exec = Executors.newFixedThreadPool(4);
+
+    for (String word : words) {
+      if (this.wordsDicEntries.containsKey(word)) {
+        final InvertedIndexHeaderEntry entry = this.wordsDicEntries.get(word);
+        Runnable runnableTask =
+            () -> {
+              Map<String, ArrayList<Integer>> list = this.searchWord(entry);
+              synchronized (synchronizedMap) {
+                synchronizedMap.putAll(list);
+              }
+            };
+        exec.execute(runnableTask);
+      }
+    }
+    exec.shutdown();
+    try {
+      while (!exec.awaitTermination(1L, TimeUnit.HOURS)) {
+        System.out.println("Not yet. Still waiting for termination");
+      }
+
+    } catch (InterruptedException e) {
+
+    }
+    return synchronizedMap;
+  }
+
+  private BitSet andOper(Map<String, ArrayList<Integer>> map) {
+    int size = getDocNumFromDb();
+    BitSet checker = new BitSet(size);
+    checker.set(0, size, true);
+
+    for (Map.Entry<String, ArrayList<Integer>> entry : map.entrySet()) {
+      BitSet tmpChecker = new BitSet(size);
+      for (int idx : entry.getValue()) {
+        tmpChecker.set(idx);
+      }
+      checker.and(tmpChecker);
+    }
+    for (int i : this.removedDocIds) {
+      checker.set(i, false);
+    }
+    return checker;
+  }
+
+  private BitSet OrOper(Map<String, ArrayList<Integer>> map) {
+    int size = getDocNumFromDb();
+    BitSet checker = new BitSet(size);
+    for (Map.Entry<String, ArrayList<Integer>> entry : map.entrySet()) {
+      BitSet tmpChecker = new BitSet(size);
+      for (int idx : entry.getValue()) {
+        tmpChecker.set(idx);
+      }
+      checker.or(tmpChecker);
+    }
+    for (int i : this.removedDocIds) {
+      checker.set(i, false);
+    }
+    return checker;
+  }
+
+  public Map<String, Document> searchQuery(ArrayList<String> words, String query) {
+    if (words.size() == 0) return new HashMap<>();
+
+    // read header
+    this.readHeader();
+    //    System.out.println("Search " + Arrays.toString(words.toArray()) + " " + query);
+    Map<String, ArrayList<Integer>> map = new HashMap<>(this.searchWords(words));
+    // search header
+    map.putAll(this.searchWords(words));
+    if (map.size() == 0) return new HashMap<>();
+
+    BitSet checker;
+    if (query.equals("AND")) checker = andOper(map);
+    else if (query.equals("OR")) {
+      checker = OrOper(map);
+    } else {
+      throw new RuntimeException("No match query method");
+    }
+    ArrayList<Integer> docIdx = new ArrayList<>();
+    for (int i = 0; i < checker.size(); i++) {
+      if (checker.get(i)) {
+        docIdx.add(i);
+      }
+    }
+    //    System.out.println( Arrays.toString(words.toArray()) + " in"+
+    // Arrays.toString(docIdx.toArray()) + "docs");
+    System.out.println("Search " + this.segmentName + "finished, find " + docIdx.size() + " docs");
+    return this.readDocuments(docIdx);
+  }
+
+  public Map<String, Document> readDocuments(ArrayList<Integer> idex) {
+    //    System.out.println("Read doc Id: " + idex);
+    this.openReadOnlyDocDb();
+    Map<String, Document> synchronizedMap = Collections.synchronizedMap(new HashMap<>());
+
+    ExecutorService exec = Executors.newFixedThreadPool(4);
+    for (int id : idex) {
+      Runnable runnableTask =
+          () -> {
+            Document doc = this.docStore.getDocument(id);
+            synchronized (synchronizedMap) {
+              synchronizedMap.put("id_" + id + "_" + this.segmentName, doc);
+            }
+          };
+      exec.execute(runnableTask);
+    }
+    // todo fix set bug
+    exec.shutdown();
+    try {
+      while (!exec.awaitTermination(1L, TimeUnit.HOURS)) {
+        System.out.println("Not yet. Still waiting for termination");
+      }
+
+    } catch (InterruptedException e) {
+
+    }
+    return synchronizedMap;
+  }
+
+  //  public ArrayList<Document> searchAndQuery(ArrayList<String> words) {
+  //    return this.searchQuery(words, "AND");
+  //  }
+
+  //  public ArrayList<Document> searchOrQuery(ArrayList<String> words) {
+  //    return this.searchQuery(words, "OR");
+  //  }
+
+  private ArrayList<Integer> readDocIds(InvertedIndexHeaderEntry entry) {
     int pageStart = entry.getPtr() / PageFileChannel.PAGE_SIZE;
     int pageEnd =
         (entry.getPtr()
@@ -545,9 +695,35 @@ public class InvertedIndex {
     return removedDocIds;
   }
 
+  public int getDocNumFromDb() {
+    if (this.docStore == null) throw new RuntimeException("Db is not been open");
+    int docNum = (int) this.docStore.size();
+    return docNum;
+  }
+
   private String getTimeStamp() {
     return (new Timestamp(System.currentTimeMillis())).toString().replace(" ", "_").replace("-", "")
         + "_"
         + (int) (Math.random() * 1000 + 1) % 1000;
+  }
+
+  public Map<String, List<Integer>> getAllInvertList() {
+    if (this.wordsDicEntries.size() == 0) {
+      this.readHeader();
+    }
+    for (InvertedIndexHeaderEntry entry : this.wordsDicEntries.values()) {
+      this.invertList.put(entry.getKey(), this.readDocIds(entry));
+    }
+
+    return this.invertList;
+  }
+
+  public Map<Integer, Document> getAllDocuments() {
+    if (this.docStore == null) this.openReadOnlyDocDb();
+    Map<Integer, Document> docs = new HashMap<>();
+    for (int i = 0; i < this.docStore.size(); i++) {
+      docs.put(i, this.docStore.getDocument(i));
+    }
+    return docs;
   }
 }

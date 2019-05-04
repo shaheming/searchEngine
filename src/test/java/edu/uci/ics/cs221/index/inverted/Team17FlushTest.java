@@ -10,8 +10,10 @@ import org.junit.After;
 import org.junit.Test;
 
 import java.io.File;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.rmi.server.ExportException;
 import java.util.*;
 
 import static org.junit.Assert.assertEquals;
@@ -19,15 +21,15 @@ import static org.junit.Assert.assertEquals;
 public class Team17FlushTest {
 
     @After
-    public void cleanUp (){
+    public void cleanUp () throws Exception {
         InvertedIndexManager.DEFAULT_FLUSH_THRESHOLD = 1000;
-        File dir = new File("./index/Team17");
-        for (File file: dir.listFiles()){
-            if (!file.isDirectory()){
-                file.delete();
-            }
-        }
-        dir.delete();
+        Path rootPath = Paths.get("./index/Team17");
+        Files.walk(rootPath)
+                .sorted(Comparator.reverseOrder())
+                .map(Path::toFile)
+                .peek(System.out::println)
+                .forEach(File::delete);
+        Files.deleteIfExists(rootPath);
     }
 
     /**
