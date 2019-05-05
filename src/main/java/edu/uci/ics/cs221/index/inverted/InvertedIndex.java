@@ -833,7 +833,7 @@ public class InvertedIndex {
     for (InvertedIndexHeaderEntry entry : this.wordsDicEntries.values()) {
       this.invertList.put(entry.getKey(), this.readDocIds(entry));
     }
-
+    this.fileChannel.close();
     return this.invertList;
   }
 
@@ -843,6 +843,7 @@ public class InvertedIndex {
     for (int i = 0; i < (int) this.docStore.size(); i++) {
       if (!this.removedDocIdx.contains(i)) docs.put(i, this.docStore.getDocument(i));
     }
+    this.docStore.close();
     return docs;
   }
 
