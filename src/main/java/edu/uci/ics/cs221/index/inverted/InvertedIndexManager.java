@@ -546,7 +546,9 @@ public class InvertedIndexManager {
     SegmentEntry entry = this.segmentMetaData.get(segmentNum);
     try {
       InvertedIndex inv = entry.openInvertedList(this.workPath);
-      return new InvertedIndexSegmentForTest(inv.getAllInvertList(), inv.getAllDocuments());
+      InvertedIndexSegmentForTest res = new InvertedIndexSegmentForTest(inv.getAllInvertList(), inv.getAllDocuments());
+      inv.close();
+      return res;
     } catch (RuntimeException e) {
       return new InvertedIndexSegmentForTest(new HashMap<>(), new HashMap<>());
     }
