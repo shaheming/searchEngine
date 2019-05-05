@@ -6,6 +6,7 @@ import edu.uci.ics.cs221.storage.MapdbDocStore;
 
 import java.io.File;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -119,8 +120,9 @@ class InvertedIndexHeaderEntry {
     return keyPtr;
   }
 
-  public void getKeyFromHeader(String words, Integer lastKeyPtr) {
-    this.key = words.substring( this.keyPtr,lastKeyPtr);
+  public void getKeyFromHeader(byte[] words, Integer nextKeyPtr) {
+    this.key =
+        new String(Arrays.copyOfRange(words, this.keyPtr, nextKeyPtr), StandardCharsets.UTF_8);
   }
 
   public void setKey(String key) {
@@ -205,7 +207,7 @@ public class InvertedIndex {
   private void InitFilePath(String dir, String name) {
     this.workPath = dir;
     this.invertListDir = this.workPath + "/";
-    this.docStoreDir = this.workPath+ "/";
+    this.docStoreDir = this.workPath + "/";
     this.segmentName = name;
     this.invertListPath = this.invertListDir + this.segmentName + ".list";
     this.docStorePath = this.docStoreDir + this.segmentName + ".db";
@@ -289,12 +291,13 @@ public class InvertedIndex {
     // write words dic to file
     String wordsStr = builder.toString();
     ByteBuffer buffer = ByteBuffer.allocate(wordsStr.length());
-    for (int i = 0; i < wordsStr.length(); i++) {
-      writeBuffer.put((byte) wordsStr.charAt(i));
+    byte[] wordsByteStream = wordsStr.getBytes();
+    for (int i = 0; i < wordsByteStream.length; i++) {
+      writeBuffer.put(wordsByteStream[i]);
     }
 
     this.headerLen =
-        wordsStr.length()
+        wordsByteStream.length
             + this.invertList.size() * InvertedIndexHeaderEntry.InvertedIndexHeaderEntrySize;
 
     Integer curListPtr = this.headerLen;
@@ -308,7 +311,7 @@ public class InvertedIndex {
       headerEntry.setKeyPtr(curWordPtr);
       headerEntry.setDocIdListPtr(curListPtr);
       curListPtr += entry.getValue().size() * InvertedIndexHeaderEntry.ptrByteSize;
-      curWordPtr += entry.getKey().length();
+      curWordPtr += entry.getKey().getBytes().length;
       headerEntry.convertToByte(writeBuffer);
     }
 
@@ -513,7 +516,8 @@ public class InvertedIndex {
   public void addDocumentForMerge(Document document, Set<String> tokens) {
     this.documents.put(this.docNum, document);
     for (String key : tokens) {
-//      if (key.length() == 0 || key.length() > InvertedIndexHeaderEntry.keyByteSize) continue;
+      //      if (key.length() == 0 || key.length() > InvertedIndexHeaderEntry.keyByteSize)
+      // continue;
       if (this.invertList.containsKey(key)) {
         invertList.get(key).add(this.docNum);
       } else {
@@ -544,8 +548,11 @@ public class InvertedIndex {
     ByteBuffer headerBuffer =
         ByteBuffer.allocate(InvertedIndexHeaderEntry.InvertedIndexHeaderEntrySize);
     StringBuilder builder = new StringBuilder();
+
     Integer wordsLen =
         this.headerLen - this.headerNum * InvertedIndexHeaderEntry.InvertedIndexHeaderEntrySize;
+
+    byte[] wordsbuffer = new byte[wordsLen];
     String words = "";
     InvertedIndexHeaderEntry lastEntry = null;
     Integer counter = 0;
@@ -554,13 +561,13 @@ public class InvertedIndex {
       // read header words
       if (counter < wordsLen) {
         while (buffer.hasRemaining()) {
-          builder.append((char) buffer.get());
+          wordsbuffer[counter] = buffer.get();
           counter++;
           if (counter.equals(wordsLen)) break;
         }
         if (counter < wordsLen) continue;
         else {
-          words = builder.toString();
+          //          words = new String(wordsbuffer, StandardCharsets.UTF_8);
         }
       }
 
@@ -572,14 +579,14 @@ public class InvertedIndex {
         headerBuffer.flip();
         InvertedIndexHeaderEntry entry = new InvertedIndexHeaderEntry(headerBuffer);
         if (lastEntry != null) {
-          lastEntry.getKeyFromHeader(words, entry.getKeyPtr());
+          lastEntry.getKeyFromHeader(wordsbuffer, entry.getKeyPtr());
           wordsDicEntries.put(lastEntry.getKey(), lastEntry);
         }
 
         lastEntry = entry;
         headerBuffer.clear();
         if (wordsDicEntries.size() == this.headerNum - 1) {
-          lastEntry.getKeyFromHeader(words, wordsLen);
+          lastEntry.getKeyFromHeader(wordsbuffer, wordsLen);
           wordsDicEntries.put(lastEntry.getKey(), lastEntry);
           return;
         }
@@ -588,12 +595,12 @@ public class InvertedIndex {
       while (buffer.remaining() >= InvertedIndexHeaderEntry.InvertedIndexHeaderEntrySize) {
         InvertedIndexHeaderEntry entry = new InvertedIndexHeaderEntry(buffer);
         if (lastEntry != null) {
-          lastEntry.getKeyFromHeader(words, entry.getKeyPtr());
+          lastEntry.getKeyFromHeader(wordsbuffer, entry.getKeyPtr());
           wordsDicEntries.put(lastEntry.getKey(), lastEntry);
         }
         lastEntry = entry;
         if (wordsDicEntries.size() == this.headerNum - 1) {
-          lastEntry.getKeyFromHeader(words, wordsLen);
+          lastEntry.getKeyFromHeader(wordsbuffer, wordsLen);
           wordsDicEntries.put(lastEntry.getKey(), lastEntry);
           return;
         }
