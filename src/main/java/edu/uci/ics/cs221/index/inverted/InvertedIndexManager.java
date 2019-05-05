@@ -58,31 +58,6 @@ public class InvertedIndexManager {
         return true;
     }
 
-    public static ByteBuffer getByteBuffer(String str)
-    {
-        return ByteBuffer.wrap(str.getBytes());
-    }
-
-    public static String getString(ByteBuffer buffer)
-    {
-        Charset charset = null;
-        CharsetDecoder decoder = null;
-        CharBuffer charBuffer = null;
-        try
-        {
-            charset = Charset.forName("UTF-8");
-            decoder = charset.newDecoder();
-            // charBuffer = decoder.decode(buffer);//用这个的话，只能输出来一次结果，第二次显示为空
-            charBuffer = decoder.decode(buffer.asReadOnlyBuffer());
-            return charBuffer.toString();
-        }
-        catch (Exception ex)
-        {
-            ex.printStackTrace();
-            return "";
-        }
-    }
-
     private Path set_path_segment(String i){
         Path path;
         path=Paths.get(indexFolder+"/seg+"+i+"/"+"segment"+i+".txt");
@@ -162,9 +137,11 @@ public class InvertedIndexManager {
                 buffer_temp.position(0);
                 buffer_temp.limit(PageFileChannel.PAGE_SIZE);
                 pageFileChannel.appendAllBytes(buffer_temp);
+                buffer_temp.flip();
+
                 buffer_temp.clear();
                 for(int i = PageFileChannel.PAGE_SIZE;i<oldP;i++){
-buffer_temp.put(buffer_temp.get(i));
+                    buffer_temp.put(buffer_temp.get(i));
                 }
             }
             Map.Entry <String, ArrayList<Integer>> entry=(Map.Entry)iter.next();
