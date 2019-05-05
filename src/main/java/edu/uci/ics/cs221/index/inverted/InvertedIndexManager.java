@@ -464,6 +464,7 @@ public class InvertedIndexManager {
     for (SegmentEntry entry : this.segmentMetaData.values()) {
       InvertedIndex inv = entry.openInvertedList(this.workPath);
       docs.addAll(inv.getAllDocuments().values());
+      inv.close();
     }
     this.segmentMetaData.clear();
     return docs.iterator();
