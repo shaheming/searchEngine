@@ -9,7 +9,9 @@ import edu.uci.ics.cs221.storage.MapdbDocStore;
 import java.io.IOException;
 import java.io.*;
 import java.io.UncheckedIOException;
-import java.nio.Buffer;
+import java.nio.CharBuffer;
+import java.nio.charset.Charset;
+import java.nio.charset.CharsetDecoder;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -56,9 +58,34 @@ public class InvertedIndexManager {
         return true;
     }
 
-    private Path set_path_segment(int i){
+    public static ByteBuffer getByteBuffer(String str)
+    {
+        return ByteBuffer.wrap(str.getBytes());
+    }
+
+    public static String getString(ByteBuffer buffer)
+    {
+        Charset charset = null;
+        CharsetDecoder decoder = null;
+        CharBuffer charBuffer = null;
+        try
+        {
+            charset = Charset.forName("UTF-8");
+            decoder = charset.newDecoder();
+            // charBuffer = decoder.decode(buffer);//用这个的话，只能输出来一次结果，第二次显示为空
+            charBuffer = decoder.decode(buffer.asReadOnlyBuffer());
+            return charBuffer.toString();
+        }
+        catch (Exception ex)
+        {
+            ex.printStackTrace();
+            return "";
+        }
+    }
+
+    private Path set_path_segment(String i){
         Path path;
-        path=Paths.get("/seg+"+i+"/"+"segment"+i+".txt");
+        path=Paths.get(indexFolder+"/seg+"+i+"/"+"segment"+i+".txt");
         return path;
     }
 
@@ -117,16 +144,17 @@ public class InvertedIndexManager {
         dbDocStore.close();
 
 
-        pageFileChannel=PageFileChannel.createOrOpen(set_path_segment(seg_counter));
+        pageFileChannel=PageFileChannel.createOrOpen(set_path_segment(""+seg_counter));
         Iterator iter=invertlist.entrySet().iterator();
         Iterator iter1=invertlist.entrySet().iterator();
 
-        int n=invertlist.size()*48;//1000*48=48000
+        int n=invertlist.size()*28;//1000*48=48000
         int sum=n;
+        int counter=0;
         List<Integer> word_length=new ArrayList<>();
         List<Integer> offset=new ArrayList<>();
+        ByteBuffer buffer_temp=ByteBuffer.allocate(PageFileChannel.PAGE_SIZE);
         while(iter.hasNext()){
-            ByteBuffer buffer_temp=ByteBuffer.allocate(48);
             Map.Entry <String, ArrayList<Integer>> entry=(Map.Entry)iter.next();
             int temp=entry.getValue().size();
             offset.add(temp);
@@ -134,33 +162,37 @@ public class InvertedIndexManager {
             if(str.length()>20)
                 str=str.substring(0,20);
             word_length.add(str.length());
-            System.out.println("size: "+str.length()+" "+str+"temp :"+temp);
+            System.out.println("size: "+str.length()+" "+str+" temp :"+temp);
             char chars[]= str.toCharArray();
             for(int i=0;i<chars.length;i++){
-                buffer_temp.putChar(chars[i]);
+                buffer_temp.put((byte)chars[i]);
+                System.out.println("real input: "+(byte)chars[i]);
             }
+            buffer_temp.position(20+counter*28);
+            counter++;
             buffer_temp.putInt(temp);
             buffer_temp.putInt(sum);
 
             sum=sum+temp*4;
-            pageFileChannel.appendAllBytes(buffer_temp);
-            buffer_temp.clear();
-        }
 
+
+        }
+       // pageFileChannel.close();
+        //pageFileChannel=PageFileChannel.createOrOpen(set_path_segment(seg_counter+"word"));
         for(int i=0;i<invertlist.size();i++){
             ByteBuffer buffer= ByteBuffer.allocate(offset.get(i)*4);
             Map.Entry <String, ArrayList<Integer>> entry=(Map.Entry)iter1.next();
             for(int j=0;j<offset.get(i);j++) {
                 buffer.putInt(entry.getValue().get(j));
             }
+            pageFileChannel.writePage(0,buffer);
         }
 
-
-
-
         pageFileChannel.close();
-        seg_counter++;
+
+
         data.put(seg_counter,word_length);///store the size()
+        seg_counter++;
         documents = new TreeMap<>();
         invertlist=new TreeMap<>();
 
@@ -171,8 +203,8 @@ public class InvertedIndexManager {
         Preconditions.checkArgument(getNumSegments() % 2 == 0);
         int n=getNumSegments();
         for(int i=1;i<n;i=i+2) {
-            PageFileChannel temp1 = PageFileChannel.createOrOpen(set_path_segment(i));
-            PageFileChannel temp2 = PageFileChannel.createOrOpen(set_path_segment(i+1));
+            PageFileChannel temp1 = PageFileChannel.createOrOpen(set_path_segment(i+""));
+            PageFileChannel temp2 = PageFileChannel.createOrOpen(set_path_segment(i+1+""));
             ByteBuffer b1=temp1.readAllPages();
             ByteBuffer b2=temp2.readAllPages();
 
@@ -285,9 +317,23 @@ public class InvertedIndexManager {
             return false;
         else return true;
     }
+    public static byte[] charToByte(char c) {
+        byte[] b = new byte[2];
+        b[0] = (byte) ((c & 0xFF00) >> 8);
+        b[1] = (byte) (c & 0xFF);
+        return b;
+    }
 
-    public InvertedIndexSegmentForTest getIndexSegment(int segmentNum) {
+    public static char byteToChar(byte[] b) {
+        char c = (char) (((b[0] & 0xFF) << 8) | (b[1] & 0xFF));
+        return c;
+    }
+
+
+    public InvertedIndexSegmentForTest getIndexSegment(int segmentNum) {//start from 0
+        if(data.isEmpty()||data==null) return null;
         Map<Integer, Document> docs=new TreeMap<>() ;
+        Map<String,List<Integer>> plist=new TreeMap<>();
         dbpath=indexFolder+"/test"+segmentNum+".db";
         dbDocStore = MapdbDocStore.createOrOpen(dbpath);
         int docnum=(int)dbDocStore.size();
@@ -297,30 +343,35 @@ public class InvertedIndexManager {
         }
         dbDocStore.close();
 
-        pageFileChannel=PageFileChannel.createOrOpen(set_path_segment(segmentNum));
+        pageFileChannel=PageFileChannel.createOrOpen(set_path_segment(segmentNum+""));
+
         int n=data.get(segmentNum).size();//size
-        int page_max=(int)Math.ceil(n*48/PageFileChannel.PAGE_SIZE);
         List<Integer> list=data.get(segmentNum);
+        for(int i=0;i<n;i++) System.out.println("real size: "+list.get(i));
         int page=0;
-        ByteBuffer temp=pageFileChannel.readPage(page);
+        ByteBuffer temp=pageFileChannel.readPage(0);
         for(int i=0;i<n;i++){
 /////////////////
-            char words[]=new char[list.get(i)];
+            char[] words=new char[list.get(i)];
             for(int j=0;j<list.get(i);j++){
+                byte uu=temp.get();
+                words[j]=(char)uu;
                 if(checknextpage(temp)){
                     page++;
                     temp=pageFileChannel.readPage(page);
+                    System.out.println("next page");
                 }
-                words[i]=temp.getChar();
+                System.out.println("char:"+words[j]);
             }
 
             String keyword=words.toString();
             System.out.println(temp.position()+" word: "+keyword);
-            int reminder=40-list.get(i)*2;
+            int reminder=20-list.get(i);
             for(int j=0;j<reminder;j++) {
                 if(checknextpage(temp)){
                     page++;
                     temp=pageFileChannel.readPage(page);
+                    System.out.println("next page");
                 }
                 temp.get();
             }
@@ -328,21 +379,40 @@ public class InvertedIndexManager {
             if(checknextpage(temp)){
                 page++;
                 temp=pageFileChannel.readPage(page);
+                System.out.println("next page");
             }
             int length=temp.getInt();
+            System.out.println("length: "+length);//
  //////////////
             if(checknextpage(temp)){
                 page++;
                 temp=pageFileChannel.readPage(page);
+                System.out.println("next page");
             }
             int offset=temp.getInt();
-
+            System.out.println("offset "+offset);//
 ////////////////////////
+            List<Integer> keyword_list=new ArrayList<>();
+            int page1=offset/PageFileChannel.PAGE_SIZE;
+            int remain1=offset%PageFileChannel.PAGE_SIZE;
+            ByteBuffer temp2=pageFileChannel.readPage(page1);
+            temp2.position(remain1);
+            for(int j=0;j<length;j++){
+                int ss=temp2.getInt();
+                keyword_list.add(ss);
+                if(checknextpage(temp2)){
+                    page1++;
+                    temp=pageFileChannel.readPage(page1);
+                    System.out.println("next page");
+                }
+            }
+            plist.put(keyword,keyword_list);
+
+
         }
-
-
         pageFileChannel.close();
-        throw new UnsupportedOperationException();
+        InvertedIndexSegmentForTest invertedIndexSegmentForTest=new InvertedIndexSegmentForTest(plist,docs);
+        return invertedIndexSegmentForTest;
     }
 
 
