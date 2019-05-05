@@ -102,7 +102,7 @@ public class InvertedIndexManager {
     }
 
     public void flush() {
-        if(documents.isEmpty()||documents==null||invertlist.isEmpty()||invertlist==null) return;
+        if(documents.size()==0||documents==null||invertlist.size()==0||invertlist==null) return;
 
         dbpath=indexFolder+"/test"+getNumSegments()+".db";
         dbDocStore = MapdbDocStore.createWithBulkLoad(dbpath, documents.entrySet().iterator());
