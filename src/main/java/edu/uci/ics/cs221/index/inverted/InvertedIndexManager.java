@@ -94,25 +94,23 @@ public class InvertedIndexManager {
                invertlist.get(temp.get(i)).add(total);
            }
         }
-
         if(after_insert_size>=DEFAULT_FLUSH_THRESHOLD){
-            dbpath=indexFolder+"/test"+getNumSegments()+".db";
-            dbDocStore = MapdbDocStore.createWithBulkLoad(dbpath, documents.entrySet().iterator());
-            InvertedIndexSegmentForTest seg_test=new InvertedIndexSegmentForTest(invertlist,documents);
-            seg_list.add(seg_test);
             flush();
-            seg_counter++;
-            documents = new TreeMap<>();
-            invertlist=new TreeMap<>();
-
             if(getNumSegments()>DEFAULT_MERGE_THRESHOLD&&getNumSegments()%2==0)
                 mergeAllSegments();
-            dbDocStore.close();
-
         }
     }
 
     public void flush() {
+        if(documents.isEmpty()||documents==null||invertlist.isEmpty()||invertlist==null) return;
+
+        dbpath=indexFolder+"/test"+getNumSegments()+".db";
+        dbDocStore = MapdbDocStore.createWithBulkLoad(dbpath, documents.entrySet().iterator());
+        InvertedIndexSegmentForTest seg_test=new InvertedIndexSegmentForTest(invertlist,documents);
+        seg_list.add(seg_test);
+        dbDocStore.close();
+
+
         pageFileChannel=PageFileChannel.createOrOpen(set_path_segment(seg_counter));
         Iterator iter=invertlist.entrySet().iterator();
         int n=invertlist.size()*48;//1000*48=48000
@@ -137,6 +135,9 @@ public class InvertedIndexManager {
             buffer_temp.clear();
         }
         pageFileChannel.close();
+        documents = new TreeMap<>();
+        invertlist=new TreeMap<>();
+        seg_counter++;
     }
 
     public void mergeAllSegments() {
@@ -222,7 +223,24 @@ public class InvertedIndexManager {
      * Iterates through all the documents in all disk segments.
      */
     public Iterator<Document> documentIterator() {
-        throw new UnsupportedOperationException();
+        List<Document> list=new ArrayList<>();
+        for(int i=0;i<seg_counter;i++){
+            if(getIndexSegment(i)!=null) {
+                int n = seg_list.get(i).getDocuments().size();
+                Iterator<Map.Entry<Integer, Document>> temp = seg_list.get(i).getDocuments().entrySet().iterator();
+                while(temp.hasNext()){
+                    Map.Entry<Integer, Document> entry = temp.next();
+                    list.add(entry.getValue());
+                }
+
+            }
+        }
+
+
+        Iterator<Document> iterator=list.iterator();
+        return iterator;
+
+       // throw new UnsupportedOperationException();
     }
 
     /**
