@@ -96,8 +96,8 @@ public class InvertedIndexManager {
   public static int DEFAULT_MERGE_THRESHOLD = 8;
 
   /**
-   * Key => segmentName, val => segmentHeaderSize segmentMetaData.txt:
-   * segmentsNo., fileName, headerlen, headerentrynum, documentnum
+   * Key => segmentName, val => segmentHeaderSize segmentMetaData.txt: segmentsNo., fileName,
+   * headerlen, headerentrynum, documentnum
    */
   private Analyzer analyzer;
 
@@ -106,7 +106,6 @@ public class InvertedIndexManager {
       Collections.synchronizedMap(new TreeMap<>());
   private String workPath;
 
-
   private InvertedIndexManager(String indexFolder, Analyzer analyzer) {
     this.analyzer = analyzer;
     this.currInvertIndex = new InvertedIndex(indexFolder);
@@ -114,8 +113,9 @@ public class InvertedIndexManager {
   }
 
   /**
-   * This function is used to load metadata about the segments, stored on the disk.
-   * Which contain the basic info about each segment
+   * This function is used to load metadata about the segments, stored on the disk. Which contain
+   * the basic info about each segment
+   *
    * @param inv
    * @param filePath
    */
@@ -153,6 +153,7 @@ public class InvertedIndexManager {
 
   /**
    * Open an InvertedIndexManager which is already exit on the disk
+   *
    * @param indexFolder
    * @param analyzer
    * @return
@@ -163,9 +164,7 @@ public class InvertedIndexManager {
     return inv;
   }
 
-  /** write metadata to disk
-   *
-   */
+  /** write metadata to disk */
   private void writeIndexMetaData() {
     try {
       BufferedWriter writer = new BufferedWriter(new FileWriter(this.workPath + "/metadata.txt"));
@@ -256,9 +255,7 @@ public class InvertedIndexManager {
     }
   }
 
-  /**
-   *  multi-thread merge
-   */
+  /** multi-thread merge */
   static class ParallelMerge extends Thread {
     String put;
     InvertedIndex inv1;
@@ -398,6 +395,7 @@ public class InvertedIndexManager {
 
   /**
    * parallel search segments
+   *
    * @param keywords
    * @param searchMethod
    * @return
@@ -477,6 +475,8 @@ public class InvertedIndexManager {
    * @param keyword
    */
   public void deleteDocuments(String keyword) {
+    if (keyword.length() == 0) return;
+    String key = this.analyzer.analyze(keyword).get(0);
     ExecutorService exec = Executors.newFixedThreadPool(4);
     Map<Integer, ArrayList<Integer>> synchronizedMap = Collections.synchronizedMap(new TreeMap<>());
     if (this.segmentMetaData.isEmpty()) {
@@ -487,7 +487,7 @@ public class InvertedIndexManager {
         Runnable runnableTask =
             () -> {
               ArrayList<Integer> removedDocIds =
-                  entry.getValue().openInvertedList(this.workPath).deleteDocuments(keyword);
+                  entry.getValue().openInvertedList(this.workPath).deleteDocuments(key);
               synchronized (synchronizedMap) {
                 synchronizedMap.put(entry.getKey(), removedDocIds);
               }
@@ -544,13 +544,11 @@ public class InvertedIndexManager {
 
     if (!this.segmentMetaData.containsKey(segmentNum)) return null;
     SegmentEntry entry = this.segmentMetaData.get(segmentNum);
-    try{
+    try {
       InvertedIndex inv = entry.openInvertedList(this.workPath);
       return new InvertedIndexSegmentForTest(inv.getAllInvertList(), inv.getAllDocuments());
-    }catch (RuntimeException e){
-      return new InvertedIndexSegmentForTest(new HashMap<> (),new HashMap<> ());
+    } catch (RuntimeException e) {
+      return new InvertedIndexSegmentForTest(new HashMap<>(), new HashMap<>());
     }
-
-
   }
 }

@@ -15,8 +15,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 /**
  * For teams doing project 2 extra credits (deletion), please add all your own deletion test cases
@@ -30,6 +29,7 @@ public class InvertedIndexDeletionTest {
 
   @Before
   public void setUp() throws Exception {
+    // number = 10
     Document[] documents = {
       new Document("cat dog toy pig"),
       new Document("cat Dot"),
@@ -42,10 +42,12 @@ public class InvertedIndexDeletionTest {
     if (!directory.exists()) {
       directory.mkdirs();
     }
+    // add two times
     invertedList = InvertedIndexManager.createOrOpen(path, analyzer);
     for (Document document : documents) {
       invertedList.addDocument(document);
     }
+
     invertedList.flush();
     for (Document document : documents) {
       invertedList.addDocument(document);
@@ -60,32 +62,51 @@ public class InvertedIndexDeletionTest {
   // of test cases, so we set them all to 5.
   @Test
   public void Test1() throws Exception {
+
     invertedList.deleteDocuments("pig");
     Set<Document> docSet = new HashSet<>();
     Iterator<Document> it = invertedList.documentIterator();
     //    Iterator<Document> qit = invertedList.searchQuery("cat");
+    Integer resultCounter = 0;
     while (it.hasNext()) {
       assertFalse(it.next().getText().contains("pig"));
+      resultCounter++;
     }
 
-    invertedList.mergeAllSegments();
-    while (it.hasNext()) {
-      assertFalse(it.next().getText().contains("pig"));
-    }
+    // document can not find pig even we do not really delete it before merge
+    assertEquals((int) 10, (int) resultCounter);
+
     Iterator<Document> its = invertedList.searchQuery("pig");
-
     assertFalse(its.hasNext());
-    invertedList.deleteDocuments("toi");
-    Iterator<Document> andit = invertedList.searchAndQuery(Arrays.asList("pig","toy"));
+  }
+  // Test merge after merge all doc will not have pig
+  @Test
+  public void Test2() throws Exception {
+    invertedList.deleteDocuments("pig");
+    invertedList.mergeAllSegments();
+
+    Iterator<Document> it = invertedList.documentIterator();
+    while (it.hasNext()) {
+      assertFalse(it.next().getText().contains("pig"));
+    }
+  }
+
+  // Test the correctness of query after delete
+  @Test
+  public void Test3() throws Exception {
+    invertedList.deleteDocuments("pig");
+    Iterator<Document> its = invertedList.searchQuery("pig");
+    assertFalse(its.hasNext());
+    invertedList.deleteDocuments("toy");
+    Iterator<Document> andit = invertedList.searchAndQuery(Arrays.asList("pig", "toy"));
     assertFalse(andit.hasNext());
 
-    Iterator<Document> andor = invertedList.searchOrQuery(Arrays.asList("pig","dog"));
+    Iterator<Document> andor = invertedList.searchOrQuery(Arrays.asList("pig", "dog"));
     while (andor.hasNext()) {
-      String text =andor.next().getText();
+      String text = andor.next().getText();
       System.out.println(text);
-      assertTrue((text.contains("cat") || text.contains("Dot")) );
+      assertTrue((text.contains("cat") || text.contains("Dot")));
     }
-
   }
 
   @After
