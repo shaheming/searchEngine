@@ -204,8 +204,8 @@ public class InvertedIndex {
 
   private void InitFilePath(String dir, String name) {
     this.workPath = dir;
-    this.invertListDir = this.workPath;
-    this.docStoreDir = this.workPath;
+    this.invertListDir = this.workPath + "/";
+    this.docStoreDir = this.workPath+ "/";
     this.segmentName = name;
     this.invertListPath = this.invertListDir + this.segmentName + ".list";
     this.docStorePath = this.docStoreDir + this.segmentName + ".db";
