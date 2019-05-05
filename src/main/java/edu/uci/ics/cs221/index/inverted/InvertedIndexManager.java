@@ -406,29 +406,20 @@ public class InvertedIndexManager {
 
     String words = String.join(" ", new LinkedList<String>(wordSet));
     ArrayList<String> token = new ArrayList<>(this.analyzer.analyze(words));
-    ArrayList<ArrayList<SegmentEntry>> searchGroups = new ArrayList<>();
-    synchronized (this.segmentMetaData) {
-      SegmentEntry[] segs =
-          this.segmentMetaData.values().toArray(new SegmentEntry[this.segmentMetaData.size()]);
-      int threshold = this.segmentMetaData.size() / 2;
-      searchGroups.add(new ArrayList<>(Arrays.asList(Arrays.copyOfRange(segs, 0, threshold))));
-      searchGroups.add(
-          new ArrayList<>(Arrays.asList(Arrays.copyOfRange(segs, threshold, segs.length))));
-    }
-    ExecutorService exec = Executors.newFixedThreadPool(4);
+    ExecutorService exec = Executors.newFixedThreadPool(2);
     Map<String, Document> synchronizedMap = Collections.synchronizedMap(new TreeMap<>());
-    for (ArrayList<SegmentEntry> group : searchGroups) {
-      Runnable runnableTask =
-          () -> {
-            for (SegmentEntry entry : group) {
+    synchronized (this.segmentMetaData) {
+      for (SegmentEntry entry : this.segmentMetaData.values()) {
+        Runnable runnableTask =
+            () -> {
               Map<String, Document> dos =
                   entry.openInvertedList(this.workPath).searchQuery(token, searchMethod);
               synchronized (synchronizedMap) {
                 synchronizedMap.putAll(dos);
               }
-            }
-          };
-      exec.execute(runnableTask);
+            };
+        exec.execute(runnableTask);
+      }
     }
     exec.shutdown();
     try {
@@ -547,7 +538,8 @@ public class InvertedIndexManager {
     SegmentEntry entry = this.segmentMetaData.get(segmentNum);
     try {
       InvertedIndex inv = entry.openInvertedList(this.workPath);
-      InvertedIndexSegmentForTest res = new InvertedIndexSegmentForTest(inv.getAllInvertList(), inv.getAllDocuments());
+      InvertedIndexSegmentForTest res =
+          new InvertedIndexSegmentForTest(inv.getAllInvertList(), inv.getAllDocuments());
       inv.close();
       return res;
     } catch (RuntimeException e) {
