@@ -98,7 +98,7 @@ public class Team22FlushTest {
     assertEquals(indexManager.getNumSegments(), 2); // should create one segment
 
     checkSegment(0, seg0Docs);
-    checkSegment(1, seg1Docs);//todo
+    checkSegment(1, seg1Docs);
   }
 
   @Test

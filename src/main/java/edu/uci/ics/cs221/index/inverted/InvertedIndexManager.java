@@ -22,6 +22,11 @@ class SegmentEntry {
   private Integer headerLen;
   private Integer docNum;
   private Set<Integer> removedDocsIdx = new TreeSet<>();
+  private Integer headerNum;
+
+  public Integer getHeaderNum() {
+    return headerNum;
+  }
 
   Integer getDocNum() {
     return docNum;
@@ -43,16 +48,11 @@ class SegmentEntry {
     return headerLen;
   }
 
-  SegmentEntry(String name, Integer headerLen, Integer docNum) {
+  SegmentEntry(String name, Integer headerLen, Integer headerNum, Integer docNum) {
     this.name = name;
     this.headerLen = headerLen;
     this.docNum = docNum;
-  }
-
-  public SegmentEntry(String name, Integer headerLen, ArrayList<Integer> removedDocsIdx) {
-    this.name = name;
-    this.headerLen = headerLen;
-    this.removedDocsIdx.addAll(removedDocsIdx);
+    this.headerNum = headerNum;
   }
 
   String serilizeRmovedList() {
@@ -68,7 +68,7 @@ class SegmentEntry {
   }
 
   InvertedIndex openInvertedList(String workPath) {
-    return InvertedIndex.openInvertList(workPath, this.getName(), this.headerLen)
+    return InvertedIndex.openInvertList(workPath, this.getName(), this.headerLen, this.headerNum)
         .setRemovedDocIdx(this.getRemovedDocsIdx());
   }
 }
@@ -124,7 +124,11 @@ public class InvertedIndexManager {
 
           inv.segmentMetaData.put(
               Integer.valueOf(cols[0]),
-              new SegmentEntry(cols[1], Integer.valueOf(cols[2]), Integer.valueOf(cols[3])));
+              new SegmentEntry(
+                  cols[1],
+                  Integer.valueOf(cols[2]),
+                  Integer.valueOf(cols[3]),
+                  Integer.valueOf(cols[4])));
           System.out.println("read segment: " + cols[0] + " " + cols[1] + " info");
         } else {
           ArrayList<Integer> removedDocs = new ArrayList<>();
@@ -160,6 +164,8 @@ public class InvertedIndexManager {
                   + entry.getValue().getName()
                   + " "
                   + entry.getValue().getHeaderLen()
+                  + " "
+                  + entry.getValue().getHeaderNum()
                   + " "
                   + entry.getValue().getDocNum()
                   + "\n");
@@ -220,6 +226,7 @@ public class InvertedIndexManager {
         new SegmentEntry(
             oldInvertList.getSegmentName(),
             oldInvertList.getHeaderLen(),
+            oldInvertList.getHeaderNum(),
             oldInvertList.getDocNum()));
     this.writeIndexMetaData();
     this.currInvertIndex = new InvertedIndex(this.workPath);
@@ -262,7 +269,8 @@ public class InvertedIndexManager {
             "Start merge: " + this.put + ",thread name is ：" + Thread.currentThread().getName());
         InvertedIndex inv = inv1.merge(inv2);
         SegmentEntry entry =
-            new SegmentEntry(inv.getSegmentName(), inv.getHeaderLen(), inv.getDocNum());
+            new SegmentEntry(
+                inv.getSegmentName(), inv.getHeaderLen(), inv.getHeaderNum(), inv.getDocNum());
 
         synchronized (this.metaData) {
           this.metaData.put(this.desSegId, entry);
@@ -320,7 +328,8 @@ public class InvertedIndexManager {
       InvertedIndex inv2 = s2.openInvertedList(this.workPath);
       InvertedIndex inv = inv1.merge(inv2);
       SegmentEntry entry =
-          new SegmentEntry(inv.getSegmentName(), inv.getHeaderLen(), inv.getDocNum());
+          new SegmentEntry(
+              inv.getSegmentName(), inv.getHeaderLen(), inv.getHeaderNum(), inv.getDocNum());
 
       synchronized (synchronizedMap) {
         synchronizedMap.put(0, entry);
@@ -511,7 +520,13 @@ public class InvertedIndexManager {
 
     if (!this.segmentMetaData.containsKey(segmentNum)) return null;
     SegmentEntry entry = this.segmentMetaData.get(segmentNum);
-    InvertedIndex inv = entry.openInvertedList(this.workPath);
-    return new InvertedIndexSegmentForTest(inv.getAllInvertList(), inv.getAllDocuments());
+    try{
+      InvertedIndex inv = entry.openInvertedList(this.workPath);
+      return new InvertedIndexSegmentForTest(inv.getAllInvertList(), inv.getAllDocuments());
+    }catch (RuntimeException e){
+      return new InvertedIndexSegmentForTest(new HashMap<> (),new HashMap<> ());
+    }
+
+
   }
 }
