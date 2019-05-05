@@ -96,8 +96,8 @@ public class InvertedIndexManager {
   public static int DEFAULT_MERGE_THRESHOLD = 8;
 
   /**
-   * Key => segmentName, val => segmentHeaderSize segmentMetaData.txt: segments X No., fileName,
-   * fileHeaderSize 0 xxxx xxxx
+   * Key => segmentName, val => segmentHeaderSize segmentMetaData.txt:
+   * segmentsNo., fileName, headerlen, headerentrynum, documentnum
    */
   private Analyzer analyzer;
 
@@ -106,13 +106,19 @@ public class InvertedIndexManager {
       Collections.synchronizedMap(new TreeMap<>());
   private String workPath;
 
-  // to the segmentMetaData
+
   private InvertedIndexManager(String indexFolder, Analyzer analyzer) {
     this.analyzer = analyzer;
     this.currInvertIndex = new InvertedIndex(indexFolder);
     this.workPath = indexFolder;
   }
 
+  /**
+   * This function is used to load metadata about the segments, stored on the disk.
+   * Which contain the basic info about each segment
+   * @param inv
+   * @param filePath
+   */
   public static void loadMetaData(InvertedIndexManager inv, Path filePath) {
     try {
       List<String> lines = Files.readAllLines(filePath);
@@ -145,12 +151,21 @@ public class InvertedIndexManager {
     }
   }
 
+  /**
+   * Open an InvertedIndexManager which is already exit on the disk
+   * @param indexFolder
+   * @param analyzer
+   * @return
+   */
   public static InvertedIndexManager open(String indexFolder, Analyzer analyzer) {
     InvertedIndexManager inv = new InvertedIndexManager(indexFolder, analyzer);
     loadMetaData(inv, Paths.get(indexFolder + "/metadata.txt"));
     return inv;
   }
 
+  /** write metadata to disk
+   *
+   */
   private void writeIndexMetaData() {
     try {
       BufferedWriter writer = new BufferedWriter(new FileWriter(this.workPath + "/metadata.txt"));
@@ -241,6 +256,9 @@ public class InvertedIndexManager {
     }
   }
 
+  /**
+   *  multi-thread merge
+   */
   static class ParallelMerge extends Thread {
     String put;
     InvertedIndex inv1;
@@ -378,6 +396,12 @@ public class InvertedIndexManager {
     return parallelSearchQuery(keywords, "AND");
   }
 
+  /**
+   * parallel search segments
+   * @param keywords
+   * @param searchMethod
+   * @return
+   */
   private Iterator<Document> parallelSearchQuery(List<String> keywords, String searchMethod) {
     Preconditions.checkNotNull(keywords);
     Set<String> wordSet = new HashSet<>(keywords); // remove duplicated
