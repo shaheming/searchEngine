@@ -137,12 +137,17 @@ public class InvertedIndexManager {
                 buffer_temp.position(0);
                 buffer_temp.limit(PageFileChannel.PAGE_SIZE);
                 pageFileChannel.appendAllBytes(buffer_temp);
-                buffer_temp.flip();
-
-                buffer_temp.clear();
+                buffer_temp.position(PageFileChannel.PAGE_SIZE);
+                buffer_temp.limit(PageFileChannel.PAGE_SIZE+200);
                 for(int i = PageFileChannel.PAGE_SIZE;i<oldP;i++){
-                    buffer_temp.put(buffer_temp.get(i));
+                    buffer_temp_real.put(buffer_temp.get());
                 }
+                buffer_temp.clear();
+                buffer_temp_real.clear();
+                for(int i = PageFileChannel.PAGE_SIZE;i<oldP;i++){
+                    buffer_temp.put(buffer_temp_real.get());
+                }
+                buffer_temp_real.clear();
             }
             Map.Entry <String, ArrayList<Integer>> entry=(Map.Entry)iter.next();
             int temp=entry.getValue().size();
@@ -172,14 +177,20 @@ public class InvertedIndexManager {
             Map.Entry <String, ArrayList<Integer>> entry=(Map.Entry)iter1.next();
             for(int j=0;j<offset.get(i);j++) {
                 if(buffer_temp.remaining()<200){
+                    System.out.println("out to page");
+                    Integer oldP = buffer_temp.position();
                     buffer_temp.position(0);
-                    for(int l=0;l<PageFileChannel.PAGE_SIZE;l++){
-                        buffer_temp_real.put(buffer_temp.get());
-                    }
-                    System.out.println("out to page11");
-                    pageFileChannel.appendAllBytes(buffer_temp_real);
-                    buffer_temp.flip();
+                    buffer_temp.limit(PageFileChannel.PAGE_SIZE);
+                    pageFileChannel.appendAllBytes(buffer_temp);
                     buffer_temp.limit(PageFileChannel.PAGE_SIZE+200);
+                    buffer_temp.position(PageFileChannel.PAGE_SIZE);
+                    for(int l = PageFileChannel.PAGE_SIZE;l<oldP;l++)
+                        buffer_temp_real.put(buffer_temp.get());
+                    buffer_temp_real.clear();
+                    buffer_temp.clear();
+                    for(int l = PageFileChannel.PAGE_SIZE;l<oldP;l++)
+                        buffer_temp.put(buffer_temp_real.get());
+
                     buffer_temp_real.clear();
                 }
                 buffer_temp.putInt(entry.getValue().get(j));
@@ -314,7 +325,7 @@ public class InvertedIndexManager {
     }
 
     private boolean checknextpage(ByteBuffer buffer){
-        if(buffer.remaining()>0)
+        if(buffer.remaining()>4)
             return false;
         else return true;
     }
@@ -369,7 +380,7 @@ public class InvertedIndexManager {
             System.out.println(temp.position()+" word: "+keyword+"number: "+list.get(i));
             int reminder=20-list.get(i);
             for(int j=0;j<reminder;j++) {
-                if(checknextpage(temp)){
+                if(temp.remaining()==0){
                     page++;
                     temp=pageFileChannel.readPage(page);
                     System.out.println("next page");
@@ -377,20 +388,43 @@ public class InvertedIndexManager {
                 temp.get();
             }
 /////////////////
+            int length;
             if(checknextpage(temp)){
+
+                int remain=temp.remaining();
+                ByteBuffer hh=ByteBuffer.allocate(4);
+                for(int l=0;l<remain;l++){
+                    hh.put(temp.get());
+                }
                 page++;
-                temp=pageFileChannel.readPage(page);
                 System.out.println("next page");
+                temp=pageFileChannel.readPage(page);
+                for(int l=0;l<4-remain;l++){
+                    hh.put(temp.get());
+                }
+                hh.clear();
+                length=hh.getInt();
             }
-            int length=temp.getInt();
+            else length=temp.getInt();
             System.out.println("length: "+length);//
  //////////////
+            int offset;
             if(checknextpage(temp)){
+                int remain=temp.remaining();
+                ByteBuffer jj=ByteBuffer.allocate(4);
+                for(int l=0;l<remain;l++){
+                    jj.put(temp.get());
+                }
                 page++;
-                temp=pageFileChannel.readPage(page);
                 System.out.println("next page");
+                temp=pageFileChannel.readPage(page);
+                for(int l=0;l<4-remain;l++){
+                    jj.put(temp.get());
+                }
+                jj.clear();
+                offset=jj.getInt();
             }
-            int offset=temp.getInt();
+            else offset=temp.getInt();
             System.out.println("offset "+offset);//
 ////////////////////////
             List<Integer> keyword_list=new ArrayList<>();
@@ -399,13 +433,25 @@ public class InvertedIndexManager {
             ByteBuffer temp2=pageFileChannel.readPage(page1);
             temp2.position(remain1);
             for(int j=0;j<length;j++){
-                int ss=temp2.getInt();
-                keyword_list.add(ss);
+                int ss;
                 if(checknextpage(temp2)){
+                    int remain=temp2.remaining();
+                    ByteBuffer jj=ByteBuffer.allocate(4);
+                    for(int l=0;l<remain;l++){
+                        jj.put(temp2.get());
+                    }
                     page1++;
-                    temp=pageFileChannel.readPage(page1);
                     System.out.println("next page");
+                    temp2=pageFileChannel.readPage(page1);
+                    for(int l=0;l<4-remain;l++){
+                        jj.put(temp2.get());
+                    }
+                    jj.clear();
+                    ss=jj.getInt();
                 }
+                else ss=temp2.getInt();
+                keyword_list.add(ss);
+
             }
             plist.put(keyword,keyword_list);
 

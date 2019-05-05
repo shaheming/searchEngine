@@ -88,6 +88,7 @@ public class Team3StressTest {
             result1.next();
             count++;
         }
+        System.out.println("read counter: "+PageFileChannel.readCounter);
         assertTrue(PageFileChannel.readCounter>=50);
         assertEquals(10000, count);
     }
