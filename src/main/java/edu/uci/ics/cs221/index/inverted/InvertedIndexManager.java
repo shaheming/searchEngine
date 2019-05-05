@@ -9,6 +9,7 @@ import edu.uci.ics.cs221.storage.MapdbDocStore;
 import java.io.IOException;
 import java.io.*;
 import java.io.UncheckedIOException;
+import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -27,10 +28,11 @@ public class InvertedIndexManager {
     private String indexFolder;
     private Map<String,List<Integer>> invertlist=new TreeMap<>();
     public  DocumentStore dbDocStore;
-    private List<InvertedIndexSegmentForTest> seg_list=new ArrayList<>();
+    private Map<Integer,List<Integer>> data=new HashMap<>();
     private Map<Integer, Document> documents=new TreeMap<>();
     private PageFileChannel pageFileChannel;
     private String dbpath;
+    private String documenttext;
     private int seg_counter=0;
 
     public static int DEFAULT_FLUSH_THRESHOLD = 1000;
@@ -79,7 +81,10 @@ public class InvertedIndexManager {
     }
 
     public void addDocument(Document document) {
+        if(document.getText()=="") return;
+        documenttext=document.getText();
         List<String> temp=analyzer.analyze(document.getText());
+
         int total=documents.size(); //
         documents.put(total,document);
         int after_insert_size=documents.size();
@@ -94,6 +99,7 @@ public class InvertedIndexManager {
                invertlist.get(temp.get(i)).add(total);
            }
         }
+
         if(after_insert_size>=DEFAULT_FLUSH_THRESHOLD){
             flush();
             if(getNumSegments()>DEFAULT_MERGE_THRESHOLD&&getNumSegments()%2==0)
@@ -102,42 +108,62 @@ public class InvertedIndexManager {
     }
 
     public void flush() {
-        if(documents.size()==0||documents==null||invertlist.size()==0||invertlist==null) return;
+        if(documenttext==""||documents.size()==0||documents==null||invertlist.size()==0||invertlist==null) return;
 
         dbpath=indexFolder+"/test"+getNumSegments()+".db";
         dbDocStore = MapdbDocStore.createWithBulkLoad(dbpath, documents.entrySet().iterator());
-        InvertedIndexSegmentForTest seg_test=new InvertedIndexSegmentForTest(invertlist,documents);
-        seg_list.add(seg_test);
+        //InvertedIndexSegmentForTest seg_test=new InvertedIndexSegmentForTest(invertlist,documents);
+        //seg_list.add(seg_test);
         dbDocStore.close();
 
 
         pageFileChannel=PageFileChannel.createOrOpen(set_path_segment(seg_counter));
         Iterator iter=invertlist.entrySet().iterator();
+        Iterator iter1=invertlist.entrySet().iterator();
+
         int n=invertlist.size()*48;//1000*48=48000
-        int sum=0;
+        int sum=n;
+        List<Integer> word_length=new ArrayList<>();
+        List<Integer> offset=new ArrayList<>();
         while(iter.hasNext()){
             ByteBuffer buffer_temp=ByteBuffer.allocate(48);
             Map.Entry <String, ArrayList<Integer>> entry=(Map.Entry)iter.next();
             int temp=entry.getValue().size();
-
+            offset.add(temp);
             String str=entry.getKey();
-            if(str.length()>20) str=str.substring(0,20);
+            if(str.length()>20)
+                str=str.substring(0,20);
+            word_length.add(str.length());
             System.out.println("size: "+str.length()+" "+str+"temp :"+temp);
             char chars[]= str.toCharArray();
             for(int i=0;i<chars.length;i++){
                 buffer_temp.putChar(chars[i]);
             }
             buffer_temp.putInt(temp);
-            buffer_temp.putInt(n+sum);
+            buffer_temp.putInt(sum);
 
             sum=sum+temp*4;
             pageFileChannel.appendAllBytes(buffer_temp);
             buffer_temp.clear();
         }
+
+        for(int i=0;i<invertlist.size();i++){
+            ByteBuffer buffer= ByteBuffer.allocate(offset.get(i)*4);
+            Map.Entry <String, ArrayList<Integer>> entry=(Map.Entry)iter1.next();
+            for(int j=0;j<offset.get(i);j++) {
+                buffer.putInt(entry.getValue().get(j));
+            }
+        }
+
+
+
+
         pageFileChannel.close();
+        seg_counter++;
+        data.put(seg_counter,word_length);///store the size()
         documents = new TreeMap<>();
         invertlist=new TreeMap<>();
-        seg_counter++;
+
     }
 
     public void mergeAllSegments() {
@@ -166,7 +192,6 @@ public class InvertedIndexManager {
                 file.delete();
             }
             f2.delete();
-
 
 
 
@@ -226,12 +251,6 @@ public class InvertedIndexManager {
         List<Document> list=new ArrayList<>();
         for(int i=0;i<seg_counter;i++){
             if(getIndexSegment(i)!=null) {
-                int n = seg_list.get(i).getDocuments().size();
-                Iterator<Map.Entry<Integer, Document>> temp = seg_list.get(i).getDocuments().entrySet().iterator();
-                while(temp.hasNext()){
-                    Map.Entry<Integer, Document> entry = temp.next();
-                    list.add(entry.getValue());
-                }
 
             }
         }
@@ -261,9 +280,69 @@ public class InvertedIndexManager {
         return seg_counter;
     }
 
+    private boolean checknextpage(ByteBuffer buffer){
+        if(buffer.remaining()>0)
+            return false;
+        else return true;
+    }
+
     public InvertedIndexSegmentForTest getIndexSegment(int segmentNum) {
-        if(seg_list.size()==0) return null;
-        return seg_list.get(segmentNum);
+        Map<Integer, Document> docs=new TreeMap<>() ;
+        dbpath=indexFolder+"/test"+segmentNum+".db";
+        dbDocStore = MapdbDocStore.createOrOpen(dbpath);
+        int docnum=(int)dbDocStore.size();
+        for(int i=0;i<docnum;i++){
+            Document temp=dbDocStore.getDocument(i);
+            docs.put(i,temp);
+        }
+        dbDocStore.close();
+
+        pageFileChannel=PageFileChannel.createOrOpen(set_path_segment(segmentNum));
+        int n=data.get(segmentNum).size();//size
+        int page_max=(int)Math.ceil(n*48/PageFileChannel.PAGE_SIZE);
+        List<Integer> list=data.get(segmentNum);
+        int page=0;
+        ByteBuffer temp=pageFileChannel.readPage(page);
+        for(int i=0;i<n;i++){
+/////////////////
+            char words[]=new char[list.get(i)];
+            for(int j=0;j<list.get(i);j++){
+                if(checknextpage(temp)){
+                    page++;
+                    temp=pageFileChannel.readPage(page);
+                }
+                words[i]=temp.getChar();
+            }
+
+            String keyword=words.toString();
+            System.out.println(temp.position()+" word: "+keyword);
+            int reminder=40-list.get(i)*2;
+            for(int j=0;j<reminder;j++) {
+                if(checknextpage(temp)){
+                    page++;
+                    temp=pageFileChannel.readPage(page);
+                }
+                temp.get();
+            }
+/////////////////
+            if(checknextpage(temp)){
+                page++;
+                temp=pageFileChannel.readPage(page);
+            }
+            int length=temp.getInt();
+ //////////////
+            if(checknextpage(temp)){
+                page++;
+                temp=pageFileChannel.readPage(page);
+            }
+            int offset=temp.getInt();
+
+////////////////////////
+        }
+
+
+        pageFileChannel.close();
+        throw new UnsupportedOperationException();
     }
 
 
