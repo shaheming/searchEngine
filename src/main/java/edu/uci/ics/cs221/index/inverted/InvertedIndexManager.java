@@ -219,11 +219,11 @@ public class InvertedIndexManager {
     this.segmentMetaData.put(
         this.segmentMetaData.size(),
         new SegmentEntry(
-            this.currInvertIndex.getSegmentName(),
-            this.currInvertIndex.getHeaderLen(),
-            this.currInvertIndex.getDocNum()));
+            oldInvertList.getSegmentName(),
+            oldInvertList.getHeaderLen(),
+            oldInvertList.getDocNum()));
     this.writeIndexMetaData();
-    this.currInvertIndex = new InvertedIndex(oldInvertList.getBasePath());
+    this.currInvertIndex = new InvertedIndex(this.workPath);
 
     if (this.segmentMetaData.size() >= DEFAULT_MERGE_THRESHOLD) {
       //      Runnable task =
@@ -327,13 +327,22 @@ public class InvertedIndexManager {
         synchronizedMap.put(0, entry);
       }
     }
-
+    ArrayList<String> oldFiles = new ArrayList<>();
     System.out.println("Join merge");
     synchronized (this.segmentMetaData) {
+      segmentMetaData.forEach((key, val) -> oldFiles.add(val.getName()));
       this.segmentMetaData.clear();
       this.segmentMetaData.putAll(synchronizedMap);
       this.writeIndexMetaData();
     }
+    oldFiles.forEach(
+        (name) -> {
+          try {
+            Files.deleteIfExists(Paths.get(this.workPath + "/index/" + name + ".list"));
+            Files.deleteIfExists(Paths.get(this.workPath + "/doc/" + name + ".db"));
+          } catch (IOException e) {
+          }
+        });
   }
 
   /**
