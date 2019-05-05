@@ -1,6 +1,5 @@
 package edu.uci.ics.cs221.index.inverted;
 
-import com.google.common.base.Preconditions;
 import edu.uci.ics.cs221.storage.Document;
 import edu.uci.ics.cs221.storage.DocumentStore;
 import edu.uci.ics.cs221.storage.MapdbDocStore;
@@ -23,14 +22,14 @@ class WritePageBuffer {
   private ByteBuffer buffer = buffer1;
   private PageFileChannel fileChannel;
 
+  /**
+   * this buffer use two buffer to align the data to one page size. When the page buffer is filled,
+   * it will be flush to disk automatically
+   *
+   * @param fileChannel pagechennel
+   */
   WritePageBuffer(PageFileChannel fileChannel) {
     this.fileChannel = fileChannel;
-  }
-
-  public WritePageBuffer putChar(char val) {
-    checkFull();
-    buffer.putChar(val);
-    return this;
   }
 
   public WritePageBuffer putInt(int val) {
@@ -64,13 +63,9 @@ class WritePageBuffer {
       } else {
         buffer = buffer1;
       }
-
       bufferOld.limit(bufferOld.position());
       bufferOld.position(limit);
       if (bufferOld.remaining() > 0) buffer.put(bufferOld);
-      //            System.out.println(Arrays.toString(buffer1.array()));
-      //            System.out.println(Arrays.toString(buffer2.array()));
-
       this.flush(bufferOld);
     }
   }
@@ -94,14 +89,18 @@ class WritePageBuffer {
   }
 }
 
+/**
+ * This data structure is used to express the header entry in the invertedList. Each entry can
+ * include | key | list length | list pointer |
+ */
 class InvertedIndexHeaderEntry {
   private String key;
   private Integer size;
   private Integer ptr;
   static Integer keyByteSize = 30;
   static Integer ptrByteSize = 4;
-  static Integer listByteSize = 4;
-  static Integer InvertedIndexHeaderEntrySize = keyByteSize + ptrByteSize + listByteSize;
+  static Integer docIdByteSize = 4;
+  static Integer InvertedIndexHeaderEntrySize = keyByteSize + ptrByteSize + docIdByteSize;
 
   public InvertedIndexHeaderEntry(String key, Integer size, Integer ptr) {
     this.key = key;
@@ -135,38 +134,35 @@ class InvertedIndexHeaderEntry {
     return ptr;
   }
 
+  /**
+   * This is use to construct the entry from byte array
+   *
+   * @param buffer is the buffer is the page buffer. for every entry this function read the length
+   *     of entry size
+   */
   InvertedIndexHeaderEntry(ByteBuffer buffer) {
-    char[] strArray = new char[InvertedIndexHeaderEntry.keyByteSize];
-    for (int i = 0; i < InvertedIndexHeaderEntry.keyByteSize; i++) {
-      char c = (char) buffer.get();
-      if (c == '\0') {
-        this.key = new String(Arrays.copyOfRange(strArray, 0, i));
-        break;
-      } else {
-        strArray[i] = c;
-        if (i == InvertedIndexHeaderEntry.keyByteSize - 1) {
-          this.key = new String(Arrays.copyOfRange(strArray, 0, i + 1));
-        }
-      }
+    char[] strArray = new char[InvertedIndexHeaderEntry.keyByteSize + 1];
+    int index = buffer.position();
+    int pos = index;
+    while (index < buffer.position() + InvertedIndexHeaderEntry.keyByteSize
+        && buffer.get(index) != '\0') {
+      strArray[index - pos] = (char) buffer.get(index);
+      index++;
     }
-
-    if (this.key == null) {
-      this.key = new String(Arrays.copyOfRange(strArray, 0, InvertedIndexHeaderEntry.keyByteSize));
-    }
-
-    for (int i = this.key.length() + 1; i < InvertedIndexHeaderEntry.keyByteSize; i++) {
-      buffer.get();
-    }
+    strArray[index - pos] = '\0';
+    buffer.position(buffer.position() + InvertedIndexHeaderEntry.keyByteSize);
+    this.key = new String(Arrays.copyOfRange(strArray, 0, index - pos));
     this.size = buffer.getInt();
     this.ptr = buffer.getInt();
-    //        this.print();
+    //    this.print();
   }
 
   void print() {
     System.out.println(this.key + " " + this.size + " " + this.ptr);
   }
 
-  void writeToMyByteBuffer(WritePageBuffer buffer) {
+  /** @param buffer convert the entry to byte and write it to write buffer */
+  void convertToByte(WritePageBuffer buffer) {
 
     for (int i = 0; i < this.key.length(); i++) {
       buffer.put((byte) this.key.charAt(i));
@@ -180,9 +176,10 @@ class InvertedIndexHeaderEntry {
   }
 }
 
+/** This class is the data structure of the invertedIndex in the memory */
 public class InvertedIndex {
   private Integer docNum = 0;
-  private Map<String, List<Integer>> invertList = new TreeMap<>();
+  private String workPath;
   private String invertListPath;
   private String invertListDir;
   private String docStorePath;
@@ -190,11 +187,10 @@ public class InvertedIndex {
   private Integer headerLen = 0; // Byte
   private DocumentStore docStore;
   protected Map<Integer, Document> documents = new HashMap<>();
+  private Map<String, List<Integer>> invertList = new TreeMap<>();
   private PageFileChannel fileChannel;
-  private String basePath;
   private String segmentName;
   private Integer headerNum = 0;
-  private WritePageBuffer writeBuffer;
   private Map<String, InvertedIndexHeaderEntry> wordsDicEntries = new TreeMap<>();
   private Set<Integer> removedDocIdx = new TreeSet<>();
 
@@ -204,17 +200,17 @@ public class InvertedIndex {
   }
 
   private void InitFilePath(String dir, String name) {
-    this.basePath = dir;
-    this.invertListDir = this.basePath + "/index/";
-    this.docStoreDir = this.basePath + "/doc/";
+    this.workPath = dir;
+    this.invertListDir = this.workPath + "/index/";
+    this.docStoreDir = this.workPath + "/doc/";
     this.segmentName = name;
     this.invertListPath = this.invertListDir + this.segmentName + ".list";
     this.docStorePath = this.docStoreDir + this.segmentName + ".db";
   }
 
-  /** @param dir */
-  public InvertedIndex(String dir) {
-    InitFilePath(dir, getTimeStamp());
+  /** @param workPath the path of work dir */
+  public InvertedIndex(String workPath) {
+    InitFilePath(workPath, getTimeStamp());
     this.checkAndCreateDir(this.invertListDir);
     this.checkAndCreateDir(this.docStoreDir);
   }
@@ -226,9 +222,12 @@ public class InvertedIndex {
     }
   }
 
-  /** @param dir */
-  public InvertedIndex(String dir, String fileName, Integer headerLen) {
-    InitFilePath(dir, fileName);
+  /**
+   * @param workPath path this method is used to initialize the invertedIndex on the disk and open
+   *     relative file for read the
+   */
+  private InvertedIndex(String workPath, String fileName, Integer headerLen) {
+    InitFilePath(workPath, fileName);
     this.headerLen = headerLen;
     this.headerNum = headerLen / InvertedIndexHeaderEntry.InvertedIndexHeaderEntrySize;
     Path indexPath = Paths.get(this.invertListPath);
@@ -243,7 +242,16 @@ public class InvertedIndex {
     } else if (!Files.exists(indexDocPath)) {
       throw new RuntimeException(indexDocPath + " do not find");
     }
-    this.writeBuffer = new WritePageBuffer(this.fileChannel);
+    this.openReadOnlyDocDb();
+  }
+
+  public void close() {
+    if (this.fileChannel != null) {
+      this.fileChannel.close();
+    }
+    if (this.docStore != null) {
+      this.docStore.close();
+    }
   }
 
   private void calHeaderLen() {
@@ -260,7 +268,7 @@ public class InvertedIndex {
     if (this.fileChannel == null) {
       this.fileChannel = PageFileChannel.createOrOpen(Paths.get(this.invertListPath));
     }
-    this.writeBuffer = new WritePageBuffer(this.fileChannel);
+    WritePageBuffer writeBuffer = new WritePageBuffer(this.fileChannel);
 
     if (this.docStore == null)
       this.docStore =
@@ -271,28 +279,29 @@ public class InvertedIndex {
     this.calHeaderLen();
     Integer curListPtr = this.headerLen;
     InvertedIndexHeaderEntry headerEntry = new InvertedIndexHeaderEntry();
-    int index = 0;
+
     for (Map.Entry<String, List<Integer>> entry : this.invertList.entrySet()) {
       headerEntry.setKey(entry.getKey());
       headerEntry.setSize(entry.getValue().size());
       headerEntry.setPtr(curListPtr);
       curListPtr += entry.getValue().size() * InvertedIndexHeaderEntry.ptrByteSize;
-      headerEntry.writeToMyByteBuffer(this.writeBuffer);
-      index++;
+      headerEntry.convertToByte(writeBuffer);
     }
+
     for (Map.Entry<String, List<Integer>> entry : this.invertList.entrySet()) {
       for (Integer i : entry.getValue()) {
         writeBuffer.putInt(i);
       }
     }
+
     writeBuffer.flush();
     System.out.println("Write segment: " + this.segmentName + " docNum: " + this.docStore.size());
-    this.docStore.close();
-    this.fileChannel.close();
+
+    this.close();
     return true;
   }
 
-  public boolean openReadOnlyDocDb() {
+  private boolean openReadOnlyDocDb() {
     if (this.docStore != null) return false;
     else {
       this.docStore = MapdbDocStore.createOrOpenReadOnly(this.docStorePath);
@@ -300,13 +309,9 @@ public class InvertedIndex {
     }
   }
 
-  public Iterator<Map.Entry<Integer, Document>> docIterator() {
-    return this.docStore.iterator();
-  }
-
   private static Integer copyDocToRemoveDelete(
       InvertedIndex src, InvertedIndex des, Deque<Integer> removedDq) {
-    Iterator<Map.Entry<Integer, Document>> it = src.docIterator();
+    Iterator<Map.Entry<Integer, Document>> it = src.docStore.iterator();
     int counter = 0;
     while (it.hasNext()) {
       Map.Entry<Integer, Document> entry = it.next();
@@ -314,13 +319,13 @@ public class InvertedIndex {
         removedDq.poll();
         continue;
       }
-      des.addDocument(entry.getValue());
+      des.addDocumentForMerge(entry.getValue());
       counter++;
     }
     return counter;
   }
 
-  public static Integer copyDocIdToRemoveDelete(
+  private static Integer copyDocIdToRemoveDelete(
       InvertedIndex des,
       String key,
       Deque<Integer> removedDq,
@@ -345,10 +350,18 @@ public class InvertedIndex {
     }
   }
 
-  // todo cal doc size
-  // todo merge second to the first
+  /**
+   * merge other inverted list to 'this' This method use the dq to iterate the keywords in two
+   * inverted list during the merge process. every queue is the sorted keywords. when merge the
+   * keywords to new invertedlist we should filter the deleted documents and recalculate the local
+   * docId this function first merge the documents db, add get an offset which is the start number
+   * of the second invertedlist's local doc id in the new invertedlist
+   *
+   * @param inv another invertedlist
+   * @return new invertedlist
+   */
   public InvertedIndex merge(InvertedIndex inv) {
-    InvertedIndex des = new InvertedIndex(this.basePath);
+    InvertedIndex des = new InvertedIndex(this.workPath);
     this.openReadOnlyDocDb();
     inv.openReadOnlyDocDb();
     // db1
@@ -428,6 +441,9 @@ public class InvertedIndex {
     }
 
     des.flush();
+    this.close();
+    inv.close();
+    des.close();
     return des;
   }
 
@@ -440,25 +456,16 @@ public class InvertedIndex {
       String indexFolder, String indexName, Integer headerLen) {
 
     InvertedIndex inv = new InvertedIndex(indexFolder, indexName, headerLen);
-    inv.openReadOnlyDocDb();
+
     return inv;
   }
 
-  // todo fix two many doc problem
-  public void addDocument(Document document, Set<String> tokens) {
-    this.documents.put(this.docNum, document);
-    for (String key : tokens) {
-      if (key.length() == 0 || key.length() > InvertedIndexHeaderEntry.keyByteSize) continue;
-      if (this.invertList.containsKey(key)) {
-        invertList.get(key).add(this.docNum);
-      } else {
-        invertList.put(key, new ArrayList<Integer>(Arrays.asList(this.docNum)));
-      }
-    }
-    this.docNum++;
-  }
-
-  public void addDocument(Document document) {
+  /**
+   * this method will add document
+   *
+   * @param document
+   */
+  public void addDocumentForMerge(Document document) {
     if (this.docNum < InvertedIndexManager.DEFAULT_FLUSH_THRESHOLD)
       this.documents.put(this.docNum, document);
     else if (this.docStore == null) {
@@ -468,6 +475,26 @@ public class InvertedIndex {
       this.documents.clear();
     } else {
       this.docStore.addDocument(this.docNum, document);
+    }
+    this.docNum++;
+  }
+
+  /**
+   * add document and token to the invertedlist this will filter the invalid keywords, which exceed
+   * the MAX length of keyword
+   *
+   * @param document
+   * @param tokens
+   */
+  public void addDocumentForMerge(Document document, Set<String> tokens) {
+    this.documents.put(this.docNum, document);
+    for (String key : tokens) {
+      if (key.length() == 0 || key.length() > InvertedIndexHeaderEntry.keyByteSize) continue;
+      if (this.invertList.containsKey(key)) {
+        invertList.get(key).add(this.docNum);
+      } else {
+        invertList.put(key, new ArrayList<Integer>(Arrays.asList(this.docNum)));
+      }
     }
     this.docNum++;
   }
@@ -523,16 +550,14 @@ public class InvertedIndex {
     this.headerNum = this.wordsDicEntries.size();
   }
 
-  public Map<String, ArrayList<Integer>> searchWord(InvertedIndexHeaderEntry entry) {
-    Preconditions.checkNotNull(wordsDicEntries);
-    ArrayList<Integer> res = this.readDocIds(entry);
-    Map<String, ArrayList<Integer>> map = new HashMap<>();
-    map.put(entry.getKey(), res);
-    return map;
-  }
-
-  public Map<String, ArrayList<Integer>> searchWords(ArrayList<String> words) throws Exception {
-    //    System.out.println("Search words: " + Arrays.toString(words.toArray()));
+  /**
+   * parallel reading the document indexes from the file
+   *
+   * @param words
+   * @return
+   */
+  public Map<String, ArrayList<Integer>> readWordsDocIdx(ArrayList<String> words) {
+    // System.out.println("Search words: " + Arrays.toString(words.toArray()));
     Map<String, ArrayList<Integer>> synchronizedMap = Collections.synchronizedMap(new HashMap<>());
 
     ExecutorService exec = Executors.newFixedThreadPool(4);
@@ -542,21 +567,21 @@ public class InvertedIndex {
         final InvertedIndexHeaderEntry entry = this.wordsDicEntries.get(word);
         Runnable runnableTask =
             () -> {
-              Map<String, ArrayList<Integer>> list = this.searchWord(entry);
+              ArrayList<Integer> idx = this.readDocIds(entry);
               synchronized (synchronizedMap) {
-                synchronizedMap.putAll(list);
+                synchronizedMap.put(entry.getKey(), idx);
               }
             };
         exec.execute(runnableTask);
       } else {
         synchronized (synchronizedMap) {
-          synchronizedMap.put(word, new ArrayList<Integer>());
+          synchronizedMap.put(word, new ArrayList<>());
         }
       }
     }
     exec.shutdown();
     try {
-      while (!exec.awaitTermination(1L, TimeUnit.HOURS)) {
+      while (!exec.awaitTermination(1L, TimeUnit.MINUTES)) {
         System.out.println("Not yet. Still waiting for termination");
       }
 
@@ -566,7 +591,12 @@ public class InvertedIndex {
     return synchronizedMap;
   }
 
-  private BitSet andOper(Map<String, ArrayList<Integer>> map) {
+  /**
+   * do or operation to all inverted list
+   * @param map
+   * @return
+   */
+  private BitSet andAllIndex(Map<String, ArrayList<Integer>> map) {
     int size = getDocNumFromDb();
     BitSet checker = new BitSet(size);
     checker.set(0, size, true);
@@ -584,7 +614,7 @@ public class InvertedIndex {
     return checker;
   }
 
-  private BitSet OrOper(Map<String, ArrayList<Integer>> map) {
+  private BitSet orAllIndex(Map<String, ArrayList<Integer>> map) {
     int size = getDocNumFromDb();
     BitSet checker = new BitSet(size);
     for (Map.Entry<String, ArrayList<Integer>> entry : map.entrySet()) {
@@ -609,7 +639,7 @@ public class InvertedIndex {
     Map<String, ArrayList<Integer>> map = new HashMap<>();
     // search header
     try {
-      map.putAll(this.searchWords(words));
+      map.putAll(this.readWordsDocIdx(words));
     } catch (Exception e) {
       return new HashMap<>();
     }
@@ -617,9 +647,9 @@ public class InvertedIndex {
     if (map.size() == 0) return new HashMap<>();
 
     BitSet checker;
-    if (query.equals("AND")) checker = andOper(map);
+    if (query.equals("AND")) checker = andAllIndex(map);
     else if (query.equals("OR")) {
-      checker = OrOper(map);
+      checker = orAllIndex(map);
     } else {
       throw new RuntimeException("No match query method");
     }
@@ -641,10 +671,13 @@ public class InvertedIndex {
             + " docs");
 
     try {
-      return this.readDocuments(docIdx);
+      Map<String, Document> res = this.readDocuments(docIdx);
+      return res;
     } catch (Exception e) {
       System.out.println("read docs idx: " + Arrays.toString(docIdx.toArray()) + " failed");
       return new HashMap<>();
+    } finally {
+      this.close();
     }
   }
 
@@ -675,7 +708,7 @@ public class InvertedIndex {
     int pageStart = entry.getPtr() / PageFileChannel.PAGE_SIZE;
     int pageEnd =
         (entry.getPtr()
-                + entry.getSize() * InvertedIndexHeaderEntry.listByteSize
+                + entry.getSize() * InvertedIndexHeaderEntry.docIdByteSize
                 + PageFileChannel.PAGE_SIZE
                 - 1)
             / PageFileChannel.PAGE_SIZE;
@@ -683,7 +716,7 @@ public class InvertedIndex {
         pageStart > 0 ? entry.getPtr() - pageStart * PageFileChannel.PAGE_SIZE : entry.getPtr();
 
     ArrayList<Integer> docIds = new ArrayList<>();
-    ByteBuffer intBuffer = ByteBuffer.allocate(InvertedIndexHeaderEntry.listByteSize);
+    ByteBuffer intBuffer = ByteBuffer.allocate(InvertedIndexHeaderEntry.docIdByteSize);
     for (int i = pageStart; i <= pageEnd; i++) {
       ByteBuffer buffer = this.fileChannel.readPage(i);
       if (i == pageStart) {
@@ -700,7 +733,7 @@ public class InvertedIndex {
           return docIds;
         }
       }
-      while (buffer.remaining() >= InvertedIndexHeaderEntry.listByteSize) {
+      while (buffer.remaining() >= InvertedIndexHeaderEntry.docIdByteSize) {
         docIds.add(buffer.getInt());
         if (docIds.size() == entry.getSize()) {
           return docIds;
@@ -713,12 +746,8 @@ public class InvertedIndex {
     return docIds;
   }
 
-  public String getBasePath() {
-    return basePath;
-  }
-
   public LinkedList<Integer> getRemovedDocIdx() {
-    return new LinkedList<Integer>(removedDocIdx);
+    return new LinkedList<>(removedDocIdx);
   }
 
   public int getDocNumFromDb() {
@@ -766,7 +795,7 @@ public class InvertedIndex {
       this.readHeader();
     }
     try {
-      Map<String, ArrayList<Integer>> wordsDocMap = this.searchWords(keywords);
+      Map<String, ArrayList<Integer>> wordsDocMap = this.readWordsDocIdx(keywords);
       for (Map.Entry<String, ArrayList<Integer>> entry : wordsDocMap.entrySet()) {
         this.removedDocIdx.addAll(entry.getValue());
       }

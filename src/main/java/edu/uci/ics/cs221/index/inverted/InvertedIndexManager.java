@@ -199,7 +199,7 @@ public class InvertedIndexManager {
    * @param document
    */
   public void addDocument(Document document) {
-    this.currInvertIndex.addDocument(
+    this.currInvertIndex.addDocumentForMerge(
         document, new HashSet<String>(this.analyzer.analyze(document.getText())));
     if (this.currInvertIndex.getDocNum() >= DEFAULT_FLUSH_THRESHOLD) this.flush();
   }
@@ -208,8 +208,7 @@ public class InvertedIndexManager {
    * Flushes all the documents in the in-memory segment buffer to disk. If the buffer is empty, it
    * should not do anything. flush() writes the segment to disk containing the posting list and the
    * corresponding document store. calculate the metadate of the of the invertList create a new
-   * invertList todo when we call this method we can create a thread to flush index the main thread
-   * can continue to add document
+   * invertList can continue to add document
    */
   public void flush() {
     if (this.currInvertIndex.getDocNum() == 0) return;
@@ -381,11 +380,9 @@ public class InvertedIndexManager {
       SegmentEntry[] segs =
           this.segmentMetaData.values().toArray(new SegmentEntry[this.segmentMetaData.size()]);
       int threshold = this.segmentMetaData.size() / 2;
+      searchGroups.add(new ArrayList<>(Arrays.asList(Arrays.copyOfRange(segs, 0, threshold))));
       searchGroups.add(
-          new ArrayList<SegmentEntry>(Arrays.asList(Arrays.copyOfRange(segs, 0, threshold))));
-      searchGroups.add(
-          new ArrayList<SegmentEntry>(
-              Arrays.asList(Arrays.copyOfRange(segs, threshold, segs.length))));
+          new ArrayList<>(Arrays.asList(Arrays.copyOfRange(segs, threshold, segs.length))));
     }
     ExecutorService exec = Executors.newFixedThreadPool(4);
     Map<String, Document> synchronizedMap = Collections.synchronizedMap(new TreeMap<>());
@@ -394,9 +391,7 @@ public class InvertedIndexManager {
           () -> {
             for (SegmentEntry entry : group) {
               Map<String, Document> dos =
-                  InvertedIndex.openInvertList(this.workPath, entry.getName(), entry.getHeaderLen())
-                      .setRemovedDocIdx(entry.getRemovedDocsIdx())
-                      .searchQuery(token, searchMethod);
+                  entry.openInvertedList(this.workPath).searchQuery(token, searchMethod);
               synchronized (synchronizedMap) {
                 synchronizedMap.putAll(dos);
               }
