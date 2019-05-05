@@ -478,7 +478,7 @@ public class InvertedIndexManager {
   public void deleteDocuments(String keyword) {
     if (keyword.length() == 0) return;
     String key = this.analyzer.analyze(keyword).get(0);
-    ExecutorService exec = Executors.newFixedThreadPool(4);
+    ExecutorService exec = Executors.newFixedThreadPool(2);
     Map<Integer, ArrayList<Integer>> synchronizedMap = Collections.synchronizedMap(new TreeMap<>());
     if (this.segmentMetaData.isEmpty()) {
       loadMetaData(this, Paths.get(this.workPath + "/metadata.txt"));

@@ -617,7 +617,7 @@ public class InvertedIndex {
     // System.out.println("Search words: " + Arrays.toString(words.toArray()));
     Map<String, ArrayList<Integer>> synchronizedMap = Collections.synchronizedMap(new HashMap<>());
 
-    ExecutorService exec = Executors.newFixedThreadPool(4);
+    ExecutorService exec = Executors.newFixedThreadPool(2);
 
     for (String word : words) {
       if (this.wordsDicEntries.containsKey(word)) {
@@ -743,7 +743,7 @@ public class InvertedIndex {
     this.openReadOnlyDocDb();
     Map<String, Document> synchronizedMap = Collections.synchronizedMap(new HashMap<>());
 
-    ExecutorService exec = Executors.newFixedThreadPool(4);
+    ExecutorService exec = Executors.newFixedThreadPool(2);
     for (int id : idex) {
       Runnable runnableTask =
           () -> {
