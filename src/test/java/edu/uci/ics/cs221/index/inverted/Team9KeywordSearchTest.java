@@ -46,7 +46,7 @@ public class Team9KeywordSearchTest {
         for (File file : localStorageFolder.listFiles()) {
             file.delete();
         }
-        localStorageFolder.delete();
+//        localStorageFolder.delete();
     }
 
     // Normal search test
