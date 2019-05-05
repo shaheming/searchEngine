@@ -86,6 +86,6 @@ public class Team12MergeTest {
     Path rootPath = Paths.get("./index/Team12MergeTest/");
     Files.walk(rootPath).sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
 
-    Files.deleteIfExists(rootPath);
+
   }
 }

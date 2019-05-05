@@ -33,7 +33,7 @@ public class Team19FlushTest {
     Path rootPath = Paths.get(file);
     Files.walk(rootPath).sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
 
-    Files.deleteIfExists(rootPath);
+
 
     iim.DEFAULT_FLUSH_THRESHOLD = 1000;
   }

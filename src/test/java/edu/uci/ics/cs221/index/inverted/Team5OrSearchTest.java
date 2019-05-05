@@ -140,6 +140,6 @@ public class Team5OrSearchTest {
     Path rootPath = Paths.get(path);
     Files.walk(rootPath).sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
 
-    Files.deleteIfExists(rootPath);
+
   }
 }

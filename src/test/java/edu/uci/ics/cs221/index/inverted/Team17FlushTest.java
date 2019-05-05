@@ -23,7 +23,7 @@ public class Team17FlushTest {
     Path rootPath = Paths.get("./index/Team17");
     Files.walk(rootPath).sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
 
-    Files.deleteIfExists(rootPath);
+
   }
 
   /** Tests if initialization works correctly in InvertedIndexManager when creating a new folder. */

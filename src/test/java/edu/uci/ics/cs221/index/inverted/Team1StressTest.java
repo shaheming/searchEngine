@@ -119,7 +119,7 @@ public class Team1StressTest {
     Path rootPath = path;
     Files.walk(rootPath).sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
 
-    Files.deleteIfExists(rootPath);
+
   }
 
   /**

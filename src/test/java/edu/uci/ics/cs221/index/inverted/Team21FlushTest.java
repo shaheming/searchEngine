@@ -41,8 +41,6 @@ public class Team21FlushTest {
   public void deleteWrittenFiles() throws IOException {
     Path rootPath = Paths.get("./index/Team21FlushTest/");
     Files.walk(rootPath).sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
-
-    Files.deleteIfExists(rootPath);
   }
 
   @Test

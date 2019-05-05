@@ -93,7 +93,7 @@ public class Team14MergeTest {
     Path rootPath = Paths.get(path);
     Files.walk(rootPath).sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
 
-    Files.deleteIfExists(rootPath);
+
     InvertedIndexManager.DEFAULT_FLUSH_THRESHOLD = 1000;
     InvertedIndexManager.DEFAULT_MERGE_THRESHOLD = 8;
   }

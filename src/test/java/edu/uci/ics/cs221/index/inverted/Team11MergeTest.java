@@ -50,7 +50,7 @@ public class Team11MergeTest {
     Path rootPath = Paths.get(indexPath);
     Files.walk(rootPath).sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
 
-    Files.deleteIfExists(rootPath);
+
   }
 
   /* Test an easy case of flush threshold=1 and merge threshold=2,

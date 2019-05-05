@@ -45,7 +45,7 @@ public class Team7AndSearchTest {
     Path rootPath = Paths.get(PATH);
     Files.walk(rootPath).sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
 
-    Files.deleteIfExists(rootPath);
+
   }
 
   @Test

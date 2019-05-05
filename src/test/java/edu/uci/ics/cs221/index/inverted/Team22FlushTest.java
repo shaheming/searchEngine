@@ -30,8 +30,6 @@ public class Team22FlushTest {
 
     Path rootPath = Paths.get(folder);
     Files.walk(rootPath).sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
-
-    Files.deleteIfExists(rootPath);
   }
 
   /*

@@ -78,6 +78,6 @@ public class Team8KeywordSearchTest {
   public void delete() throws Exception {
     Path rootPath = Paths.get(pathname);
     Files.walk(rootPath).sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
-    Files.deleteIfExists(rootPath);
+
   }
 }

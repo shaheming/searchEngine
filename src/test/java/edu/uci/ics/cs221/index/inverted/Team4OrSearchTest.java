@@ -92,6 +92,6 @@ public class Team4OrSearchTest {
     Path rootPath = Paths.get(FOLDER);
     Files.walk(rootPath).sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
 
-    Files.deleteIfExists(rootPath);
+
   }
 }
