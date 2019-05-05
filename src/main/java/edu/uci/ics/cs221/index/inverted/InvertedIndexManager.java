@@ -147,47 +147,71 @@ public class InvertedIndexManager {
         pageFileChannel=PageFileChannel.createOrOpen(set_path_segment(""+seg_counter));
         Iterator iter=invertlist.entrySet().iterator();
         Iterator iter1=invertlist.entrySet().iterator();
-
         int n=invertlist.size()*28;//1000*48=48000
         int sum=n;
         int counter=0;
+        int num=PageFileChannel.PAGE_SIZE/28;//146 8
         List<Integer> word_length=new ArrayList<>();
         List<Integer> offset=new ArrayList<>();
-        ByteBuffer buffer_temp=ByteBuffer.allocate(PageFileChannel.PAGE_SIZE);
+        ByteBuffer buffer_temp=ByteBuffer.allocate(PageFileChannel.PAGE_SIZE+200);
+        ByteBuffer buffer_temp_real=ByteBuffer.allocate(PageFileChannel.PAGE_SIZE);
         while(iter.hasNext()){
+            if(buffer_temp.remaining()<200){
+                System.out.println("out to page");
+                Integer oldP = buffer_temp.position();
+                buffer_temp.position(0);
+                buffer_temp.limit(PageFileChannel.PAGE_SIZE);
+                pageFileChannel.appendAllBytes(buffer_temp);
+                buffer_temp.clear();
+                for(int i = PageFileChannel.PAGE_SIZE;i<oldP;i++){
+buffer_temp.put(buffer_temp.get(i));
+                }
+            }
             Map.Entry <String, ArrayList<Integer>> entry=(Map.Entry)iter.next();
             int temp=entry.getValue().size();
+            System.out.println("temp: "+temp);
             offset.add(temp);
             String str=entry.getKey();
             if(str.length()>20)
                 str=str.substring(0,20);
             word_length.add(str.length());
-            System.out.println("size: "+str.length()+" "+str+" temp :"+temp);
+            //System.out.println("size: "+str.length()+" "+str+" temp :"+temp);
             char chars[]= str.toCharArray();
             for(int i=0;i<chars.length;i++){
                 buffer_temp.put((byte)chars[i]);
-                System.out.println("real input: "+(byte)chars[i]);
+               // System.out.println("real input: "+(byte)chars[i]);
             }
             buffer_temp.position(20+counter*28);
+            System.out.println("now p: "+ buffer_temp.position());
             counter++;
             buffer_temp.putInt(temp);
             buffer_temp.putInt(sum);
-
+            System.out.println("sum: "+sum);
             sum=sum+temp*4;
 
-
         }
-       // pageFileChannel.close();
-        //pageFileChannel=PageFileChannel.createOrOpen(set_path_segment(seg_counter+"word"));
         for(int i=0;i<invertlist.size();i++){
-            ByteBuffer buffer= ByteBuffer.allocate(offset.get(i)*4);
+
             Map.Entry <String, ArrayList<Integer>> entry=(Map.Entry)iter1.next();
             for(int j=0;j<offset.get(i);j++) {
-                buffer.putInt(entry.getValue().get(j));
+                if(buffer_temp.remaining()<200){
+                    buffer_temp.position(0);
+                    for(int l=0;l<PageFileChannel.PAGE_SIZE;l++){
+                        buffer_temp_real.put(buffer_temp.get());
+                    }
+                    System.out.println("out to page11");
+                    pageFileChannel.appendAllBytes(buffer_temp_real);
+                    buffer_temp.flip();
+                    buffer_temp.limit(PageFileChannel.PAGE_SIZE+200);
+                    buffer_temp_real.clear();
+                }
+                buffer_temp.putInt(entry.getValue().get(j));
             }
-            pageFileChannel.writePage(0,buffer);
+
         }
 
+
+        pageFileChannel.appendAllBytes(buffer_temp);
         pageFileChannel.close();
 
 
@@ -361,11 +385,11 @@ public class InvertedIndexManager {
                     temp=pageFileChannel.readPage(page);
                     System.out.println("next page");
                 }
-                System.out.println("char:"+words[j]);
+                //System.out.println("char:"+words[j]);
             }
 
-            String keyword=words.toString();
-            System.out.println(temp.position()+" word: "+keyword);
+            String keyword= String.valueOf(words);
+            System.out.println(temp.position()+" word: "+keyword+"number: "+list.get(i));
             int reminder=20-list.get(i);
             for(int j=0;j<reminder;j++) {
                 if(checknextpage(temp)){

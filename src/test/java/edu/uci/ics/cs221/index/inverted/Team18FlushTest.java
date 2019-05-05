@@ -103,13 +103,13 @@ public class Team18FlushTest {
 
     @After
     public void clear(){
-        /*File dir = new File("./index/Team18FlushTest");
+        File dir = new File("./index/Team18FlushTest");
         for (File file: dir.listFiles()){
             if (!file.isDirectory()){
                 file.delete();
             }
         }
-        dir.delete();*/
+        dir.delete();
     }
 
 
