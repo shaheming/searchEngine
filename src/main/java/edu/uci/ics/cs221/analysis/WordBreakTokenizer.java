@@ -72,7 +72,7 @@ public class WordBreakTokenizer implements Tokenizer {
 
     if (text.length() == 0) {
       // TODO(all): find a better exception
-      throw new RuntimeException("there's no possible way to break the string");
+      return new ArrayList<>();
     }
 
     String lowerText = text.toLowerCase();
