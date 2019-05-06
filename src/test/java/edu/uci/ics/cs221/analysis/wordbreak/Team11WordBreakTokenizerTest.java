@@ -1,7 +1,6 @@
 package edu.uci.ics.cs221.analysis.wordbreak;
 
 import edu.uci.ics.cs221.analysis.WordBreakTokenizer;
-import edu.uci.ics.cs221.analysis.WordBreakTokenizerSha;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -77,7 +76,7 @@ public class Team11WordBreakTokenizerTest {
     public void test7() {
         String text = "thesearchnewtimeuse";
         List<String> expected = Arrays.asList("search", "new", "time", "use");
-        WordBreakTokenizerSha tokenizer = new WordBreakTokenizerSha();
+        WordBreakTokenizer tokenizer = new WordBreakTokenizer();
         
         assertEquals(expected, tokenizer.tokenize(text));
     }
