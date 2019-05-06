@@ -1,7 +1,6 @@
 package edu.uci.ics.cs221.analysis.wordbreak;
 
 import edu.uci.ics.cs221.analysis.WordBreakTokenizer;
-import edu.uci.ics.cs221.analysis.WordBreakTokenizerSha;
 import org.junit.Test;
 
 import java.util.Arrays;

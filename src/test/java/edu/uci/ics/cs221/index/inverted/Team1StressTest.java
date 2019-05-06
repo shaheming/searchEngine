@@ -8,7 +8,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.io.File;
 import java.io.IOException;
 import java.net.URL;
 import java.nio.file.*;
@@ -116,24 +115,15 @@ public class Team1StressTest {
      * @throws IOException
      */
     private void deleteDirectory(Path path) throws IOException {
-       /* if (Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS)) {
+        if (Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS)) {
             try (DirectoryStream<Path> entries = Files.newDirectoryStream(path)) {
                 for (Path entry : entries) {
                     deleteDirectory(entry);
                 }
             }
         }
-        Files.delete(path);*/
-        File f = new File(path.toString());
-        File[] files = f.listFiles();
-        for (File file : files) {
-            file.delete();
-        }
-        f.delete();
-
-
-
-}
+        Files.delete(path);
+    }
 
     /**
      * Generate large documents from the dictionary.
