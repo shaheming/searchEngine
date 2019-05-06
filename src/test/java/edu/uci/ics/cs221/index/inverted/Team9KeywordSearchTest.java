@@ -3,7 +3,6 @@ package edu.uci.ics.cs221.index.inverted;
 import edu.uci.ics.cs221.analysis.ComposableAnalyzer;
 import edu.uci.ics.cs221.analysis.PorterStemmer;
 import edu.uci.ics.cs221.analysis.WordBreakTokenizer;
-import edu.uci.ics.cs221.analysis.WordBreakTokenizerSha;
 import edu.uci.ics.cs221.storage.Document;
 import org.junit.After;
 import org.junit.Before;
@@ -28,7 +27,7 @@ public class Team9KeywordSearchTest {
 
     @Before
     public void setUp() {
-        analyzer = new ComposableAnalyzer( new WordBreakTokenizerSha(), new PorterStemmer());
+        analyzer = new ComposableAnalyzer( new WordBreakTokenizer(), new PorterStemmer());
         indexFolder = "./index/Team9KeywordSearchTest/";
         invertedIndex = InvertedIndexManager.createOrOpen(indexFolder, analyzer);
 
@@ -47,7 +46,7 @@ public class Team9KeywordSearchTest {
         for (File file : localStorageFolder.listFiles()) {
             file.delete();
         }
-//        localStorageFolder.delete();
+        localStorageFolder.delete();
     }
 
     // Normal search test

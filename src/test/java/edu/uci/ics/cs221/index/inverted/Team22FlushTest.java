@@ -282,7 +282,6 @@ public class Team22FlushTest {
 
         // check segment context and read counter
         checkSegment(0, docs);
-        System.out.println(PageFileChannel.readCounter);
         assertTrue(PageFileChannel.readCounter >= 3);
     }
 
