@@ -9,9 +9,7 @@ import edu.uci.ics.cs221.storage.MapdbDocStore;
 import java.io.IOException;
 import java.io.*;
 import java.io.UncheckedIOException;
-import java.nio.CharBuffer;
-import java.nio.charset.Charset;
-import java.nio.charset.CharsetDecoder;
+import java.sql.Timestamp;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -36,6 +34,7 @@ public class InvertedIndexManager {
     private String dbpath;
     private String documenttext;
     private int seg_counter=0;
+    private Map<Integer,Path> pathmap=new HashMap<>();
 
     public static int DEFAULT_FLUSH_THRESHOLD = 1000;
     public static int DEFAULT_MERGE_THRESHOLD = 8;
@@ -60,7 +59,13 @@ public class InvertedIndexManager {
 
     private Path set_path_segment(String i){
         Path path;
-        path=Paths.get(indexFolder+"/seg+"+i+"/"+"segment"+i+".txt");
+        path=Paths.get(indexFolder+new Timestamp(System.currentTimeMillis()).toString()
+                .replace(" ", "_")
+                .replace("-", "")
+                .replace(":", "")
+                .replace(".", "")
+                + "_"
+                + (int) (Math.random() * 1000 + 1) % 1000+".txt");
         return path;
     }
 
@@ -118,8 +123,9 @@ public class InvertedIndexManager {
         //seg_list.add(seg_test);
         dbDocStore.close();
 
-
-        pageFileChannel=PageFileChannel.createOrOpen(set_path_segment(""+seg_counter));
+        Path xx=set_path_segment(""+seg_counter);
+        pageFileChannel=PageFileChannel.createOrOpen(xx);
+        pathmap.put(seg_counter,xx);
         Iterator iter=invertlist.entrySet().iterator();
         Iterator iter1=invertlist.entrySet().iterator();
         int n=invertlist.size()*28;//1000*48=48000
@@ -313,12 +319,17 @@ public class InvertedIndexManager {
      */
     public Iterator<Document> documentIterator() {
         List<Document> list=new ArrayList<>();
-        for(int i=0;i<seg_counter;i++){
-            if(getIndexSegment(i)!=null) {
+        int n=getNumSegments();
+        for(int i=0;i<n;i++){
+            InvertedIndexSegmentForTest test=getIndexSegment(i);
+            int doc_num=test.getDocuments().size();
+            for(int j=0;j<doc_num;j++){
+                
+
 
             }
-        }
 
+        }
 
         Iterator<Document> iterator=list.iterator();
         return iterator;
@@ -355,8 +366,8 @@ public class InvertedIndexManager {
             docs.put(i,temp);
         }
         dbDocStore.close();
-
-        pageFileChannel=PageFileChannel.createOrOpen(set_path_segment(segmentNum+""));
+        Path aa=pathmap.get(segmentNum);
+        pageFileChannel=PageFileChannel.createOrOpen(aa);
 
         int n=data.get(segmentNum).size();//size
         List<Integer> list=data.get(segmentNum);
