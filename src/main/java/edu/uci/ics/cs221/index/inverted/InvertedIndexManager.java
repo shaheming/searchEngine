@@ -115,7 +115,8 @@ public class InvertedIndexManager {
     }
 
     public void flush() {
-        if(documenttext==""||documents.size()==0||documents==null||invertlist.size()==0||invertlist==null) return;
+        if(documenttext=="") seg_counter++;
+        if(documents.size()==0||documents==null||invertlist.size()==0||invertlist==null) return;
 
         dbpath=indexFolder+"/test"+getNumSegments()+".db";
         dbDocStore = MapdbDocStore.createWithBulkLoad(dbpath, documents.entrySet().iterator());
@@ -302,33 +303,24 @@ public class InvertedIndexManager {
         throw new UnsupportedOperationException();
     }
 
-    /**
-     * Performs an OR boolean search on the inverted index.
-     *
-     * @param keywords a list of keywords in the OR query
-     * @return a iterator of documents matching the query
-     */
     public Iterator<Document> searchOrQuery(List<String> keywords) {
         Preconditions.checkNotNull(keywords);
 
         throw new UnsupportedOperationException();
     }
 
-    /**
-     * Iterates through all the documents in all disk segments.
-     */
     public Iterator<Document> documentIterator() {
         List<Document> list=new ArrayList<>();
         int n=getNumSegments();
         for(int i=0;i<n;i++){
             InvertedIndexSegmentForTest test=getIndexSegment(i);
-            int doc_num=test.getDocuments().size();
-            for(int j=0;j<doc_num;j++){
-                
+            Iterator iter=test.getDocuments().entrySet().iterator();
+            while(iter.hasNext()){
+                Map.Entry <Integer, Document> entry=(Map.Entry)iter.next();
+                list.add(entry.getValue());
 
 
             }
-
         }
 
         Iterator<Document> iterator=list.iterator();
