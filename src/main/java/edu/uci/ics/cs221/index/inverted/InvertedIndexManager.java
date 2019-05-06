@@ -115,7 +115,7 @@ public class InvertedIndexManager {
     }
 
     public void flush() {
-        if(documenttext=="") seg_counter++;
+        if(documenttext==""&&documents!=null&&invertlist!=null) seg_counter++;
         if(documents.size()==0||documents==null||invertlist.size()==0||invertlist==null) return;
 
         dbpath=indexFolder+"/test"+getNumSegments()+".db";
