@@ -1,10 +1,12 @@
 ## CS221 Project - Peterman Search Engine
 ## Team 5
 In this project, we implement:
-1. Punctuation Tokenizer
-2. PorterStemmer
-3. WordBreak--English version (Use Dynamic programming)
-4. WordBreakCKJ(class)
+
+We implement a disk-based index structure is based on the idea of LSM (Log-Structured Merge tree)
+1. write and read
+2. merge
+3. search(and and or)
+4. delete
 
 Chinese and Japanese both Version
 use the dictionary called dic_cn and dic_jp under resource directory
