@@ -28,7 +28,7 @@ public class DeltaVarLenCompressor implements Compressor {
                 temp[j] = (byte) ((new_value & 0b1111111) | 0b10000000); //0b->binary
                 new_value >>= 7;
             }
-            temp[bytes_length] = (byte) (temp[bytes_length]&0b01111111); //reset the last byte
+            temp[0] = (byte) (temp[0]&0b01111111); //reset the last byte
 
             for(int j = 0; j < bytes_length; j++) {
                 list.add(temp[j]);
@@ -44,6 +44,13 @@ public class DeltaVarLenCompressor implements Compressor {
 
     @Override
     public List<Integer> decode(byte[] bytes, int start, int length) {
+       byte[] buffer=new byte[length];
+       for(int i=0;i<length;i++){
+           buffer[i]=bytes[start+i];
+       }
+
+
+
         throw new UnsupportedOperationException();
     }
 }
