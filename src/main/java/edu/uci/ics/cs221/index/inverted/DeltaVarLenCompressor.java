@@ -24,13 +24,12 @@ public class DeltaVarLenCompressor implements Compressor {
             int bytes_length = ((32-Integer.numberOfLeadingZeros(new_value))+ 6)/7;
             bytes_length = bytes_length > 0 ? bytes_length : 1;
             byte[] temp = new byte[bytes_length];
-
             for(int j = 0; j < bytes_length; j++) {
-                temp[j] = (byte) ((new_value & 0b1111111) | 0b10000000);
+                temp[j] = (byte) ((new_value & 0b1111111) | 0b10000000); //0b->binary
                 new_value >>= 7;
             }
+            temp[bytes_length] = (byte) (temp[bytes_length]&0b01111111); //reset the last byte
 
-            temp[0] &= 0b01111111;
             for(int j = 0; j < bytes_length; j++) {
                 list.add(temp[j]);
             }
