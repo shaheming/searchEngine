@@ -180,8 +180,10 @@ public class Team5IndexCompressionTest {
     Assert.assertTrue(naive_rc>1.5*compress_rc);
     Assert.assertTrue(naive_wc>1.5*compress_wc);
   }
+
   //test add really long document, testing the positional list works or not
   //mainly test positional  list since inverted  since  positional list is long
+
   public void Test5() {
     Assert.assertEquals(0, PageFileChannel.readCounter);
     Assert.assertEquals(0, PageFileChannel.writeCounter);
