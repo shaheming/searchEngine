@@ -212,6 +212,11 @@ public class InvertedIndexManager {
     }
   }
 
+  public static InvertedIndexManager createOrOpenPositional(String indexFolder, Analyzer analyzer, Compressor compressor) {
+    throw new UnsupportedOperationException();
+  }
+
+
   /**
    * Adds a document to the inverted index. Document should live in a in-memory buffer until
    * `flush()` is called to write the segment to disk.
@@ -400,6 +405,7 @@ public class InvertedIndexManager {
    * @param searchMethod
    * @return
    */
+
   private Iterator<Document> parallelSearchQuery(List<String> keywords, String searchMethod) {
     Preconditions.checkNotNull(keywords);
     Set<String> wordSet = new HashSet<>(keywords); // remove duplicated
@@ -432,6 +438,12 @@ public class InvertedIndexManager {
     }
     ArrayList<Document> res = new ArrayList<>(synchronizedMap.values());
     return res.iterator();
+  }
+
+  public Iterator<Document> searchPhraseQuery(List<String> phrase) {
+    Preconditions.checkNotNull(phrase);
+
+    throw new UnsupportedOperationException();
   }
 
   /**
@@ -546,4 +558,14 @@ public class InvertedIndexManager {
       return new InvertedIndexSegmentForTest(new HashMap<>(), new HashMap<>());
     }
   }
+
+  public PositionalIndexSegmentForTest getIndexSegmentPositional(int segmentNum) {
+    throw new UnsupportedOperationException();
+  }
+
+
+
 }
+
+
+
