@@ -54,6 +54,7 @@ public class Team5IndexCompressionTest {
     Assert.assertEquals(0, PageFileChannel.writeCounter);
     for(int i=0;i<10000;i++)
       positional_list_naive_compressor.addDocument(new Document(""));
+    positional_list_naive_compressor.flush();
     for(int i=0;i<positional_list_naive_compressor.getNumSegments();i++){
       positional_list_naive_compressor.getIndexSegmentPositional(i);
     }
@@ -63,6 +64,7 @@ public class Team5IndexCompressionTest {
 
     for(int i=0;i<10000;i++)
       positional_list_compressor.addDocument(new Document(""));
+    positional_list_compressor.flush();
     for(int i=0;i<positional_list_compressor.getNumSegments();i++){
       positional_list_compressor.getIndexSegmentPositional(i);
     }
@@ -80,6 +82,7 @@ public class Team5IndexCompressionTest {
     Assert.assertEquals(0, PageFileChannel.writeCounter);
     for(int i=0;i<10000;i++)
       positional_list_naive_compressor.addDocument(new Document("cat Dot"));
+    positional_list_naive_compressor.flush();
     for(int i=0;i<positional_list_naive_compressor.getNumSegments();i++){
       positional_list_naive_compressor.getIndexSegmentPositional(i);
     }
@@ -89,6 +92,7 @@ public class Team5IndexCompressionTest {
 
     for(int i=0;i<10000;i++)
       positional_list_compressor.addDocument(new Document("cat Dot"));
+    positional_list_compressor.flush();
     for(int i=0;i<positional_list_compressor.getNumSegments();i++){
       positional_list_compressor.getIndexSegmentPositional(i);
     }
@@ -109,7 +113,7 @@ public class Team5IndexCompressionTest {
       positional_list_naive_compressor.addDocument(new Document("cat and dog have a lot of difference"));
       positional_list_naive_compressor.addDocument(new Document("Dog can be very different from cat"));
     }
-
+    positional_list_naive_compressor.flush();
     for(int i=0;i<positional_list_naive_compressor.getNumSegments();i++){
       positional_list_naive_compressor.getIndexSegmentPositional(i);
     }
@@ -122,7 +126,7 @@ public class Team5IndexCompressionTest {
       positional_list_compressor.addDocument(new Document("cat and dog have a lot of difference"));
       positional_list_compressor.addDocument(new Document("Dog can be very different from cat"));
     }
-
+    positional_list_compressor.flush();
     for(int i=0;i<positional_list_compressor.getNumSegments();i++){
       positional_list_compressor.getIndexSegmentPositional(i);
     }
@@ -146,7 +150,7 @@ public class Team5IndexCompressionTest {
       positional_list_naive_compressor.addDocument(new Document
               ("microsoft"+i+" microsoft"+i+" microsoft"+i+" vs apple"+i+" apple"+i+" apple"+i));
     }
-
+    positional_list_naive_compressor.flush();
     for(int i=0;i<positional_list_naive_compressor.getNumSegments();i++){
       positional_list_naive_compressor.getIndexSegmentPositional(i);
     }
@@ -162,7 +166,7 @@ public class Team5IndexCompressionTest {
       positional_list_compressor.addDocument(new Document
               ("microsoft"+i+" microsoft"+i+" microsoft"+i+" vs apple"+i+" apple"+i+" apple"+i));
     }
-
+    positional_list_compressor.flush();
     for(int i=0;i<positional_list_compressor.getNumSegments();i++){
       positional_list_compressor.getIndexSegmentPositional(i);
     }
