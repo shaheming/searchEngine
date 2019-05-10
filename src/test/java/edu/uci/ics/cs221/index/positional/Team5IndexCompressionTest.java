@@ -139,9 +139,12 @@ public class Team5IndexCompressionTest {
     Assert.assertEquals(0, PageFileChannel.readCounter);
     Assert.assertEquals(0, PageFileChannel.writeCounter);
     for(int i=0;i<3000;i++){
-      positional_list_naive_compressor.addDocument(new Document("cat cat cat and dog dog dog"));
-      positional_list_naive_compressor.addDocument(new Document("pepsi pepsi pepsi or coke coke coke"));
-      positional_list_naive_compressor.addDocument(new Document("microsoft microsoft microsoft vs apple apple apple"));
+      positional_list_naive_compressor.addDocument(new Document
+              ("cat"+i+" cat"+i+" cat"+i+" and dog"+i+" dog"+i+" dog"+i));
+      positional_list_naive_compressor.addDocument(new Document
+              ("pepsi"+i+" pepsi"+i+" pepsi"+i+" or coke"+i+" coke"+i+" coke"+i));
+      positional_list_naive_compressor.addDocument(new Document
+              ("microsoft"+i+" microsoft"+i+" microsoft"+i+" vs apple"+i+" apple"+i+" apple"+i));
     }
 
     for(int i=0;i<positional_list_naive_compressor.getNumSegments();i++){
