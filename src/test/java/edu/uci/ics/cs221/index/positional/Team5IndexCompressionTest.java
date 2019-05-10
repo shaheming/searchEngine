@@ -1,8 +1,14 @@
 package edu.uci.ics.cs221.index.positional;
 
 import com.google.common.primitives.Ints;
+import edu.uci.ics.cs221.analysis.Analyzer;
+import edu.uci.ics.cs221.analysis.ComposableAnalyzer;
+import edu.uci.ics.cs221.analysis.PorterStemmer;
+import edu.uci.ics.cs221.analysis.PunctuationTokenizer;
 import edu.uci.ics.cs221.index.inverted.DeltaVarLenCompressor;
+import edu.uci.ics.cs221.index.inverted.InvertedIndexManager;
 import edu.uci.ics.cs221.index.inverted.NaiveCompressor;
+import edu.uci.ics.cs221.storage.Document;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -14,10 +20,16 @@ import java.util.List;
 import java.util.Random;
 
 public class Team5IndexCompressionTest {
+  private DeltaVarLenCompressor compressor = new DeltaVarLenCompressor();
+  private NaiveCompressor naiveCompressor = new NaiveCompressor();
+  private List<Integer> positional_list=new ArrayList<>();
 
   @Before
-  public void setup() throws Exception {}
-
+  public void setup() {
+    for(int i=0;i<100;i++){
+      positional_list.add(i);
+    }
+  }
   /**
    * Test time consumption for compress a large amount of integer.
    * Test the correctness of encode and decode
@@ -83,7 +95,7 @@ public class Team5IndexCompressionTest {
       Assert.assertTrue(data[i] == decoded.get(i));
     }
   }
-  /* Test conner case
+  /* Test corner case
    *
    */
   @Test
@@ -95,13 +107,12 @@ public class Team5IndexCompressionTest {
     Assert.assertEquals(0, decoded.size());
   }
 
-  /* Test conner case
+  /* Test corner case
    *
    */
   @Test
-  public void commpressionRatioTest() throws Exception {
-    DeltaVarLenCompressor compressor = new DeltaVarLenCompressor();
-    NaiveCompressor naiveCompressor = new NaiveCompressor();
+  public void commpressionRatioTest1() throws Exception {
+
     int SIZE = 10000000;
     Random r = new Random(System.currentTimeMillis());
     int data[] = r.ints(SIZE, 0, SIZE).toArray();
@@ -114,6 +125,13 @@ public class Team5IndexCompressionTest {
     System.out.println(encoded.length + " "+ naiveencoded.length);
   }
 
+
+
+  
+
   @After
-  public void cleanup() throws Exception {}
+  public void cleanup()  {
+    positional_list.clear();
+
+  }
 }
