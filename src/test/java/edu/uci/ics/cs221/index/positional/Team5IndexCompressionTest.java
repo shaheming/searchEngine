@@ -8,12 +8,17 @@ import edu.uci.ics.cs221.analysis.PunctuationTokenizer;
 import edu.uci.ics.cs221.index.inverted.DeltaVarLenCompressor;
 import edu.uci.ics.cs221.index.inverted.InvertedIndexManager;
 import edu.uci.ics.cs221.index.inverted.NaiveCompressor;
-import edu.uci.ics.cs221.storage.Document;
+
+import java.io.File;
+import java.util.Collections;
+
+import edu.uci.ics.cs221.index.inverted.PageFileChannel;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -22,14 +27,44 @@ import java.util.Random;
 public class Team5IndexCompressionTest {
   private DeltaVarLenCompressor compressor = new DeltaVarLenCompressor();
   private NaiveCompressor naiveCompressor = new NaiveCompressor();
-  private List<Integer> positional_list=new ArrayList<>();
+  private String path1 = "./index/Team5IndexCompressionTest/naive_compress";
+  private String path2 = "./index/Team5IndexCompressionTest/compress";
+  private Analyzer analyzer = new ComposableAnalyzer(new PunctuationTokenizer(), new PorterStemmer());
+  private InvertedIndexManager positional_list_naive_compressor;
+  private InvertedIndexManager positional_list_compresspor;
+
+  private List<Integer> positional_list_empty=new ArrayList<>();
+  private List<Integer> positional_list1=new ArrayList<>();
+  private List<Integer> positional_list2=new ArrayList<>();
+  private List<Integer> positional_list3=new ArrayList<>();
+
 
   @Before
   public void setup() {
-    for(int i=0;i<100;i++){
-      positional_list.add(i);
+    File directory1 = new File(path1);
+    if (!directory1.exists()) {
+      directory1.mkdirs();
     }
+    File directory2 = new File(path2);
+    if (!directory2.exists()) {
+      directory2.mkdirs();
+    }
+    positional_list_naive_compressor=InvertedIndexManager.createOrOpenPositional(path1,analyzer,compressor);
+    positional_list_compresspor=InvertedIndexManager.createOrOpenPositional(path2,analyzer,naiveCompressor);
+
+    for(int i=0;i<100;i++) positional_list1.add(i);//small number(sorted)
+    for(int i=0;i<10000;i++) positional_list2.add(i);//big number(sorted)
+    for(int i=0;i<10000;i++) {
+      positional_list3.add((int)Math.random()%100);//random number(sorted)
+      Collections.sort(positional_list3);
+    }
+
   }
+
+
+
+
+
   /**
    * Test time consumption for compress a large amount of integer.
    * Test the correctness of encode and decode
@@ -127,11 +162,21 @@ public class Team5IndexCompressionTest {
 
 
 
-  
+
 
   @After
   public void cleanup()  {
-    positional_list.clear();
+    PageFileChannel.resetCounters();
+    File f = new File("./index/Team5IndexCompressionTest");
+    File[] files = f.listFiles();
+    for (File file : files) {
+      file.delete();
+    }
+    f.delete();
 
+    positional_list_empty.clear();
+    positional_list1.clear();
+    positional_list2.clear();
+    positional_list3.clear();
   }
 }
