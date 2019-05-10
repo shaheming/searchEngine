@@ -52,11 +52,32 @@ public class Team5IndexCompressionTest {
   public void Test1() {
     Assert.assertEquals(0, PageFileChannel.readCounter);
     Assert.assertEquals(0, PageFileChannel.writeCounter);
+    for(int i=0;i<10000;i++)
+      positional_list_naive_compressor.addDocument(new Document(""));
+    for(int i=0;i<positional_list_naive_compressor.getNumSegments();i++){
+      positional_list_naive_compressor.getIndexSegmentPositional(i);
+    }
+    int naive_wc=PageFileChannel.writeCounter;
+    int naive_rc=PageFileChannel.readCounter;
+    PageFileChannel.resetCounters();
+
+    for(int i=0;i<10000;i++)
+      positional_list_compressor.addDocument(new Document(""));
+    for(int i=0;i<positional_list_compressor.getNumSegments();i++){
+      positional_list_compressor.getIndexSegmentPositional(i);
+    }
+    int compress_wc=PageFileChannel.writeCounter;
+    int compress_rc=PageFileChannel.readCounter;
+
+    Assert.assertTrue(naive_rc==compress_rc);//0
+    Assert.assertTrue(naive_wc==compress_wc);//0
   }
 
-  //test simple and same documents
+  //test simple and same documents, can each key word show only one time
   @Test
   public void Test2() {
+    Assert.assertEquals(0, PageFileChannel.readCounter);
+    Assert.assertEquals(0, PageFileChannel.writeCounter);
     for(int i=0;i<10000;i++)
       positional_list_naive_compressor.addDocument(new Document("cat Dot"));
     for(int i=0;i<positional_list_naive_compressor.getNumSegments();i++){
@@ -78,25 +99,59 @@ public class Team5IndexCompressionTest {
     Assert.assertTrue(naive_wc<compress_wc);
   }
 
-
+  //test docs with different text and key words show multiple times in a single document
   @Test
   public void Test3() {
-    for(int i=0;i<100;i++) positional_list1.add(i);//small number(sorted)
-    for(int i=0;i<10000;i++) positional_list2.add(i);//big number(sorted)
-    for(int i=0;i<10000;i++) {
-      positional_list3.add((int)Math.random()%100);//random number(sorted)
-      Collections.sort(positional_list3);
+    for(int i=0;i<3000;i++){
+      positional_list_naive_compressor.addDocument(new Document("cat Dot cat Dog I can not tell the difference between cat and Dog"));
+      positional_list_naive_compressor.addDocument(new Document("cat and dog have a lot of difference"));
+      positional_list_naive_compressor.addDocument(new Document("Dog can be very different from cat"));
     }
+
+    for(int i=0;i<positional_list_naive_compressor.getNumSegments();i++){
+      positional_list_naive_compressor.getIndexSegmentPositional(i);
+    }
+    int naive_wc=PageFileChannel.writeCounter;
+    int naive_rc=PageFileChannel.readCounter;
+    PageFileChannel.resetCounters();
+
+    for(int i=0;i<3000;i++){
+      positional_list_compressor.addDocument(new Document("cat Dot cat Dog I can not tell the difference between cat and Dog"));
+      positional_list_compressor.addDocument(new Document("cat and dog have a lot of difference"));
+      positional_list_compressor.addDocument(new Document("Dog can be very different from cat"));
+    }
+
+    for(int i=0;i<positional_list_compressor.getNumSegments();i++){
+      positional_list_compressor.getIndexSegmentPositional(i);
+    }
+    int compress_wc=PageFileChannel.writeCounter;
+    int compress_rc=PageFileChannel.readCounter;
+
+    Assert.assertTrue(naive_rc<compress_rc);
+    Assert.assertTrue(naive_wc<compress_wc);
   }
 
   @Test
   public void Test4() {
-    for(int i=0;i<100;i++) positional_list1.add(i);//small number(sorted)
-    for(int i=0;i<10000;i++) positional_list2.add(i);//big number(sorted)
-    for(int i=0;i<10000;i++) {
-      positional_list3.add((int)Math.random()%100);//random number(sorted)
-      Collections.sort(positional_list3);
+    for(int i=0;i<10000;i++)
+      positional_list_naive_compressor.addDocument(new Document("cat Dot"));
+    for(int i=0;i<positional_list_naive_compressor.getNumSegments();i++){
+      positional_list_naive_compressor.getIndexSegmentPositional(i);
     }
+    int naive_wc=PageFileChannel.writeCounter;
+    int naive_rc=PageFileChannel.readCounter;
+    PageFileChannel.resetCounters();
+
+    for(int i=0;i<10000;i++)
+      positional_list_compressor.addDocument(new Document("cat Dot"));
+    for(int i=0;i<positional_list_compressor.getNumSegments();i++){
+      positional_list_compressor.getIndexSegmentPositional(i);
+    }
+    int compress_wc=PageFileChannel.writeCounter;
+    int compress_rc=PageFileChannel.readCounter;
+
+    Assert.assertTrue(naive_rc<compress_rc);
+    Assert.assertTrue(naive_wc<compress_wc);
   }
 
 
