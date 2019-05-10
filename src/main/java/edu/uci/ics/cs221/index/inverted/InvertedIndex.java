@@ -1,9 +1,11 @@
 package edu.uci.ics.cs221.index.inverted;
 
+import com.sun.xml.internal.messaging.saaj.util.ByteOutputStream;
 import edu.uci.ics.cs221.storage.Document;
 import edu.uci.ics.cs221.storage.DocumentStore;
 import edu.uci.ics.cs221.storage.MapdbDocStore;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -11,10 +13,48 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.sql.Timestamp;
+import java.util.AbstractMap.SimpleEntry;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+// class postingList
+class LRUPageCache {
+  private Integer capacity = 3;
+  private Map<Integer, SimpleEntry<Integer, ByteBuffer>> map = new HashMap<>();
+  private LinkedList<SimpleEntry<Integer, ByteBuffer>> list = new LinkedList<>();
+
+  LRUPageCache() {}
+
+  public void put(Integer page_num, ByteBuffer page_buffer) {
+    if (list.size() > capacity) {
+      SimpleEntry<Integer, ByteBuffer> entry = list.removeFirst();
+      this.map.remove(entry.getKey());
+    }
+    SimpleEntry<Integer, ByteBuffer> entry =
+        new SimpleEntry<Integer, ByteBuffer>(page_num, page_buffer);
+    list.add(entry);
+    map.put(page_num, entry);
+  }
+
+  public ByteBuffer get(Integer page_num) {
+    if (map.containsKey(page_num)) {
+      SimpleEntry<Integer, ByteBuffer> entry = map.get(page_num);
+      list.remove(entry);
+      list.add(entry);
+      return entry.getValue();
+    } else return null;
+  }
+
+  LRUPageCache(Integer c) {
+    this.capacity = c;
+  }
+
+  public void clear() {
+    this.map.clear();
+    this.list.clear();
+  }
+}
 
 class WritePageBuffer {
   private ByteBuffer buffer1 = ByteBuffer.allocate(PageFileChannel.PAGE_SIZE + 100);
@@ -40,11 +80,8 @@ class WritePageBuffer {
   }
 
   public WritePageBuffer put(ByteBuffer src) {
-    int n = src.remaining();
-    for (int i = 0; i < n; i++) {
-      if (buffer.position() >= this.limit) {
-        checkFull();
-      }
+    while (src.hasRemaining()) {
+      checkFull();
       buffer.put(src.get());
     }
     return this;
@@ -198,6 +235,8 @@ public class InvertedIndex {
   private Integer headerNum = 0;
   private Map<String, InvertedIndexHeaderEntry> wordsDicEntries = new TreeMap<>();
   private Set<Integer> removedDocIdx = new TreeSet<>();
+  private DeltaVarLenCompressor compressor = new DeltaVarLenCompressor();
+  private LRUPageCache postingListLRU = new LRUPageCache();
 
   public InvertedIndex setRemovedDocIdx(ArrayList<Integer> removedList) {
     this.removedDocIdx = new TreeSet<>(removedList);
@@ -206,8 +245,8 @@ public class InvertedIndex {
 
   private void InitFilePath(String dir, String name) {
     this.workPath = dir;
-    this.invertListDir = this.workPath + "/";
-    this.docStoreDir = this.workPath + "/";
+    this.invertListDir = this.workPath + "/list/";
+    this.docStoreDir = this.workPath + "/doc/";
     this.segmentName = name;
     this.invertListPath = this.invertListDir + this.segmentName + ".list";
     this.docStorePath = this.docStoreDir + this.segmentName + ".db";
@@ -304,23 +343,25 @@ public class InvertedIndex {
     Integer curWordPtr = 0;
 
     InvertedIndexHeaderEntry headerEntry = new InvertedIndexHeaderEntry();
-
+    ByteArrayOutputStream listbuffer = new ByteArrayOutputStream();
+    ByteBuffer intBuff = ByteBuffer.allocate(4);
     for (Map.Entry<String, List<Integer>> entry : this.invertList.entrySet()) {
       headerEntry.setKey(entry.getKey());
       headerEntry.setSize(entry.getValue().size());
       headerEntry.setKeyPtr(curWordPtr);
       headerEntry.setDocIdListPtr(curListPtr);
-      curListPtr += entry.getValue().size() * InvertedIndexHeaderEntry.ptrByteSize;
+      byte[] encoded = compressor.encode(entry.getValue());
+      intBuff.putInt(encoded.length);
+      listbuffer.write(intBuff.array(), 0, intBuff.capacity());
+      intBuff.clear();
+      listbuffer.write(encoded, 0, encoded.length);
+      curListPtr += encoded.length + 4;
       curWordPtr += entry.getKey().getBytes().length;
       headerEntry.convertToByte(writeBuffer);
     }
 
-    for (Map.Entry<String, List<Integer>> entry : this.invertList.entrySet()) {
-      for (Integer i : entry.getValue()) {
-        writeBuffer.putInt(i);
-      }
-    }
 
+    writeBuffer.put(ByteBuffer.wrap(listbuffer.toByteArray()));
     writeBuffer.flush();
     System.out.println("Write segment: " + this.segmentName + " docNum: " + this.docStore.size());
 
@@ -462,7 +503,7 @@ public class InvertedIndex {
           des,
           entry2.getKey(),
           new LinkedList<>(inv.getRemovedDocIdx()),
-          this.readDocIds(entry2),
+          inv.readDocIds(entry2),
           ivL1Size);
       dq2.poll();
     }
@@ -629,29 +670,23 @@ public class InvertedIndex {
     for (String word : words) {
       if (this.wordsDicEntries.containsKey(word)) {
         final InvertedIndexHeaderEntry entry = this.wordsDicEntries.get(word);
-        Runnable runnableTask =
-            () -> {
-              ArrayList<Integer> idx = this.readDocIds(entry);
-              synchronized (synchronizedMap) {
-                synchronizedMap.put(entry.getKey(), idx);
-              }
-            };
-        exec.execute(runnableTask);
+        synchronizedMap.put(entry.getKey(), this.readDocIds(entry));
       } else {
-        synchronized (synchronizedMap) {
-          synchronizedMap.put(word, new ArrayList<>());
-        }
+        //        synchronized (synchronizedMap) {
+        //          synchronizedMap.put(word, new ArrayList<>());
+        //        }
+        synchronizedMap.put(word, new ArrayList<>());
       }
     }
-    exec.shutdown();
-    try {
-      while (!exec.awaitTermination(1L, TimeUnit.MINUTES)) {
-        System.out.println("Not yet. Still waiting for termination");
-      }
-
-    } catch (InterruptedException e) {
-
-    }
+    //    exec.shutdown();
+    //    try {
+    //      while (!exec.awaitTermination(1L, TimeUnit.MINUTES)) {
+    //        System.out.println("Not yet. Still waiting for termination");
+    //      }
+    //
+    //    } catch (InterruptedException e) {
+    //
+    //    }
     return synchronizedMap;
   }
 
@@ -784,32 +819,65 @@ public class InvertedIndex {
 
     ArrayList<Integer> docIds = new ArrayList<>();
     ByteBuffer intBuffer = ByteBuffer.allocate(InvertedIndexHeaderEntry.docIdByteSize);
-    for (int i = pageStart; i <= pageEnd; i++) {
-      ByteBuffer buffer = this.fileChannel.readPage(i);
-      if (i == pageStart) {
-        buffer.position(offset);
-      }
+    ByteOutputStream bytesteam = new ByteOutputStream();
+    ByteBuffer buffer = postingListLRU.get(pageStart);
+    if (buffer == null) {
+      buffer = this.fileChannel.readPage(pageStart);
+      postingListLRU.put(pageStart, buffer);
+    }
+    buffer.position(offset);
+    int counter = 0;
+    int page_cursor = pageStart;
+    while (true) {
       if (intBuffer.position() > 0) {
-        while (intBuffer.remaining() > 0) {
+        while (intBuffer.hasRemaining()) {
           intBuffer.put(buffer.get());
         }
         intBuffer.flip();
-        docIds.add(intBuffer.getInt());
+        //        docIds.add(intBuffer.getInt());
+        counter = intBuffer.getInt();
         intBuffer.clear();
-        if (docIds.size() == entry.getSize()) {
-          return docIds;
-        }
+        break;
       }
-      while (buffer.remaining() >= InvertedIndexHeaderEntry.docIdByteSize) {
-        docIds.add(buffer.getInt());
-        if (docIds.size() == entry.getSize()) {
-          return docIds;
-        }
-      }
-      while (buffer.hasRemaining()) {
+      while (buffer.hasRemaining() && intBuffer.hasRemaining()) {
         intBuffer.put(buffer.get());
       }
+      if (!intBuffer.hasRemaining()) {
+        intBuffer.flip();
+        counter = intBuffer.getInt();
+        intBuffer.clear();
+        break;
+      }
+      page_cursor++;
+      buffer = postingListLRU.get(page_cursor);
+      if (buffer == null) {
+        buffer = this.fileChannel.readPage(page_cursor);
+        postingListLRU.put(page_cursor, buffer);
+      }
     }
+    while (counter > 0) {
+      int len =
+          buffer.capacity() - buffer.position() > counter
+              ? counter
+              : buffer.capacity() - buffer.position();
+      bytesteam.write(buffer.array(), buffer.position(), len);
+      counter -= len;
+      if (counter <= 0) break;
+      page_cursor++;
+      buffer = postingListLRU.get(page_cursor);
+      if (buffer == null) {
+        buffer = this.fileChannel.readPage(page_cursor);
+        postingListLRU.put(page_cursor, buffer);
+      }
+    }
+
+    if (bytesteam.getCount() > 0) {
+      List<Integer> idx =
+          compressor.decode(Arrays.copyOfRange(bytesteam.getBytes(), 0, bytesteam.getCount()));
+      docIds.addAll(idx);
+    }
+    //    System.out.println(entry.getKey() + Arrays.toString(docIds.toArray()));
+
     return docIds;
   }
 
