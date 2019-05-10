@@ -24,6 +24,13 @@ class SegmentEntry {
   private Set<Integer> removedDocsIdx = new TreeSet<>();
   private Integer headerNum;
 
+  SegmentEntry(String name, Integer headerLen, Integer headerNum, Integer docNum) {
+    this.name = name;
+    this.headerLen = headerLen;
+    this.docNum = docNum;
+    this.headerNum = headerNum;
+  }
+
   public Integer getHeaderNum() {
     return headerNum;
   }
@@ -36,23 +43,8 @@ class SegmentEntry {
     this.removedDocsIdx.addAll(removedDocsIdx);
   }
 
-  ArrayList<Integer> getRemovedDocsIdx() {
-    return new ArrayList<Integer>(removedDocsIdx);
-  }
-
-  public String getName() {
-    return name;
-  }
-
   Integer getHeaderLen() {
     return headerLen;
-  }
-
-  SegmentEntry(String name, Integer headerLen, Integer headerNum, Integer docNum) {
-    this.name = name;
-    this.headerLen = headerLen;
-    this.docNum = docNum;
-    this.headerNum = headerNum;
   }
 
   String serilizeRmovedList() {
@@ -70,6 +62,14 @@ class SegmentEntry {
   InvertedIndex openInvertedList(String workPath) {
     return InvertedIndex.openInvertList(workPath, this.getName(), this.headerLen, this.headerNum)
         .setRemovedDocIdx(this.getRemovedDocsIdx());
+  }
+
+  ArrayList<Integer> getRemovedDocsIdx() {
+    return new ArrayList<Integer>(removedDocsIdx);
+  }
+
+  public String getName() {
+    return name;
   }
 }
 
@@ -95,6 +95,8 @@ public class InvertedIndexManager {
    */
   public static int DEFAULT_MERGE_THRESHOLD = 8;
 
+  private final Map<Integer, SegmentEntry> segmentMetaData =
+      Collections.synchronizedMap(new TreeMap<>());
   /**
    * Key => segmentName, val => segmentHeaderSize segmentMetaData.txt: segmentsNo., fileName,
    * headerlen, headerentrynum, documentnum
@@ -102,14 +104,25 @@ public class InvertedIndexManager {
   private Analyzer analyzer;
 
   private InvertedIndex currInvertIndex;
-  private final Map<Integer, SegmentEntry> segmentMetaData =
-      Collections.synchronizedMap(new TreeMap<>());
   private String workPath;
 
   private InvertedIndexManager(String indexFolder, Analyzer analyzer) {
     this.analyzer = analyzer;
     this.currInvertIndex = new InvertedIndex(indexFolder);
     this.workPath = indexFolder;
+  }
+
+  /**
+   * Open an InvertedIndexManager which is already exit on the disk
+   *
+   * @param indexFolder
+   * @param analyzer
+   * @return
+   */
+  public static InvertedIndexManager open(String indexFolder, Analyzer analyzer) {
+    InvertedIndexManager inv = new InvertedIndexManager(indexFolder, analyzer);
+    loadMetaData(inv, Paths.get(indexFolder + "/metadata.txt"));
+    return inv;
   }
 
   /**
@@ -151,48 +164,6 @@ public class InvertedIndexManager {
     }
   }
 
-  /**
-   * Open an InvertedIndexManager which is already exit on the disk
-   *
-   * @param indexFolder
-   * @param analyzer
-   * @return
-   */
-  public static InvertedIndexManager open(String indexFolder, Analyzer analyzer) {
-    InvertedIndexManager inv = new InvertedIndexManager(indexFolder, analyzer);
-    loadMetaData(inv, Paths.get(indexFolder + "/metadata.txt"));
-    return inv;
-  }
-
-  /** write metadata to disk */
-  private void writeIndexMetaData() {
-    try {
-      BufferedWriter writer = new BufferedWriter(new FileWriter(this.workPath + "/metadata.txt"));
-      String removedList = "";
-      synchronized (this.segmentMetaData) {
-        writer.write(this.segmentMetaData.size() + "\n");
-        for (Map.Entry<Integer, SegmentEntry> entry : this.segmentMetaData.entrySet()) {
-          writer.write(
-              entry.getKey()
-                  + " "
-                  + entry.getValue().getName()
-                  + " "
-                  + entry.getValue().getHeaderLen()
-                  + " "
-                  + entry.getValue().getHeaderNum()
-                  + " "
-                  + entry.getValue().getDocNum()
-                  + "\n");
-          removedList = removedList + entry.getValue().serilizeRmovedList();
-        }
-      }
-      writer.write(removedList);
-      writer.close();
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
-    }
-  }
-
   /** Creates an inverted index manager with the folder and an analyzer */
   public static InvertedIndexManager createOrOpen(String indexFolder, Analyzer analyzer) {
     try {
@@ -211,6 +182,42 @@ public class InvertedIndexManager {
       throw new UncheckedIOException(e);
     }
   }
+  /**
+   * Creates a positional index with the given folder, analyzer, and the compressor. Compressor must
+   * be used to compress the inverted lists and the position lists.
+   */
+  public static InvertedIndexManager createOrOpenPositional(
+      String indexFolder, Analyzer analyzer, Compressor compressor) {
+    throw new UnsupportedOperationException();
+  }
+  /**
+   * Performs a phrase search on a positional index. Phrase search means the document must contain
+   * the consecutive sequence of keywords in exact order.
+   *
+   * <p>You could assume the analyzer won't convert each keyword into multiple tokens. Throws
+   * UnsupportedOperationException if the inverted index is not a positional index.
+   *
+   * @param phrase, a consecutive sequence of keywords
+   * @return a iterator of documents matching the query
+   */
+  public Iterator<Document> searchPhraseQuery(List<String> phrase) {
+    Preconditions.checkNotNull(phrase);
+
+    throw new UnsupportedOperationException();
+  }
+  /**
+   * Reads a disk segment of a positional index into memory based on segmentNum. This function is
+   * mainly used for checking correctness in test cases.
+   *
+   * <p>Throws UnsupportedOperationException if the inverted index is not a positional index.
+   *
+   * @param segmentNum n-th segment in the inverted index (start from 0).
+   * @return in-memory data structure with all contents in the index segment, null if segmentNum
+   *     don't exist.
+   */
+  public PositionalIndexSegmentForTest getIndexSegmentPositional(int segmentNum) {
+    throw new UnsupportedOperationException();
+  }
 
   /**
    * Adds a document to the inverted index. Document should live in a in-memory buffer until
@@ -219,8 +226,23 @@ public class InvertedIndexManager {
    * @param document
    */
   public void addDocument(Document document) {
-    this.currInvertIndex.addDocumentForMerge(
-        document, new HashSet<String>(this.analyzer.analyze(document.getText())));
+    Map<String, ArrayList<Integer>> wordPositionMap = new TreeMap<>();
+    List<String> tokens = this.analyzer.analyze(document.getText());
+    int index = 0;
+    Iterator<String> it = tokens.iterator();
+    String token = "";
+    while (it.hasNext()) {
+      token = it.next();
+      if (!wordPositionMap.containsKey(token)) {
+        ArrayList<Integer> positionIndex = new ArrayList<>();
+        positionIndex.add(index);
+        wordPositionMap.put(token, positionIndex);
+      } else {
+        wordPositionMap.get(token).add(index);
+      }
+      index++;
+    }
+    this.currInvertIndex.addDocument(document, wordPositionMap);
     if (this.currInvertIndex.getDocNum() >= DEFAULT_FLUSH_THRESHOLD) this.flush();
   }
 
@@ -255,50 +277,32 @@ public class InvertedIndexManager {
     }
   }
 
-  /** multi-thread merge */
-  static class ParallelMerge extends Thread {
-    String put;
-    InvertedIndex inv1;
-    InvertedIndex inv2;
-    final Map<Integer, SegmentEntry> metaData;
-    Integer desSegId;
-
-    public ParallelMerge(
-        String name,
-        String path,
-        final Map<Integer, SegmentEntry> metaData,
-        SegmentEntry s1,
-        SegmentEntry s2,
-        Integer desSegId) {
-      super(name);
-      this.put = s1.getName() + " " + s2.getName();
-      this.inv1 = s1.openInvertedList(path);
-      this.inv2 = s2.openInvertedList(path);
-      this.desSegId = desSegId;
-      this.metaData = metaData;
-    }
-
-    public void run() {
-      try {
-        System.out.println(
-            "Start merge: " + this.put + ",thread name is ：" + Thread.currentThread().getName());
-        InvertedIndex inv = inv1.merge(inv2);
-        SegmentEntry entry =
-            new SegmentEntry(
-                inv.getSegmentName(), inv.getHeaderLen(), inv.getHeaderNum(), inv.getDocNum());
-
-        synchronized (this.metaData) {
-          this.metaData.put(this.desSegId, entry);
+  /** write metadata to disk */
+  private void writeIndexMetaData() {
+    try {
+      BufferedWriter writer = new BufferedWriter(new FileWriter(this.workPath + "/metadata.txt"));
+      String removedList = "";
+      synchronized (this.segmentMetaData) {
+        writer.write(this.segmentMetaData.size() + "\n");
+        for (Map.Entry<Integer, SegmentEntry> entry : this.segmentMetaData.entrySet()) {
+          writer.write(
+              entry.getKey()
+                  + " "
+                  + entry.getValue().getName()
+                  + " "
+                  + entry.getValue().getHeaderLen()
+                  + " "
+                  + entry.getValue().getHeaderNum()
+                  + " "
+                  + entry.getValue().getDocNum()
+                  + "\n");
+          removedList = removedList + entry.getValue().serilizeRmovedList();
         }
-      } catch (RuntimeException e) {
-        e.printStackTrace();
       }
-      System.out.println(
-          "Merge: "
-              + this.put
-              + ",thread name is ："
-              + Thread.currentThread().getName()
-              + "finished");
+      writer.write(removedList);
+      writer.close();
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
     }
   }
 
@@ -361,11 +365,26 @@ public class InvertedIndexManager {
     oldFiles.forEach(
         (name) -> {
           try {
-            Files.deleteIfExists(Paths.get(this.workPath + "/index/" + name + ".list"));
-            Files.deleteIfExists(Paths.get(this.workPath + "/doc/" + name + ".db"));
+            Files.deleteIfExists(Paths.get(this.workPath + "/" + name + ".list"));
+            Files.deleteIfExists(Paths.get(this.workPath + "/" + name + ".db"));
           } catch (IOException e) {
+            System.out.println(e.toString());
           }
         });
+  }
+
+  /**
+   * Gets the total number of segments in the inverted index. This function is used for checking
+   * correctness in test cases.
+   *
+   * @return number of index segments.
+   */
+  public int getNumSegments() {
+    int num;
+    synchronized (this.segmentMetaData) {
+      num = this.segmentMetaData.size();
+    }
+    return num;
   }
 
   /**
@@ -380,16 +399,6 @@ public class InvertedIndexManager {
     Preconditions.checkNotNull(keyword);
     ArrayList<String> keywords = new ArrayList<>();
     keywords.add(keyword);
-    return parallelSearchQuery(keywords, "AND");
-  }
-
-  /**
-   * Performs an AND boolean search on the inverted index.
-   *
-   * @param keywords a list of keywords in the AND query
-   * @return a iterator of documents matching the query
-   */
-  public Iterator<Document> searchAndQuery(List<String> keywords) {
     return parallelSearchQuery(keywords, "AND");
   }
 
@@ -432,6 +441,16 @@ public class InvertedIndexManager {
     }
     ArrayList<Document> res = new ArrayList<>(synchronizedMap.values());
     return res.iterator();
+  }
+
+  /**
+   * Performs an AND boolean search on the inverted index.
+   *
+   * @param keywords a list of keywords in the AND query
+   * @return a iterator of documents matching the query
+   */
+  public Iterator<Document> searchAndQuery(List<String> keywords) {
+    return parallelSearchQuery(keywords, "AND");
   }
 
   /**
@@ -504,20 +523,6 @@ public class InvertedIndexManager {
   }
 
   /**
-   * Gets the total number of segments in the inverted index. This function is used for checking
-   * correctness in test cases.
-   *
-   * @return number of index segments.
-   */
-  public int getNumSegments() {
-    int num;
-    synchronized (this.segmentMetaData) {
-      num = this.segmentMetaData.size();
-    }
-    return num;
-  }
-
-  /**
    * Reads a disk segment into memory based on segmentNum. This function is mainly used for checking
    * correctness in test cases.
    *
@@ -531,6 +536,7 @@ public class InvertedIndexManager {
         loadMetaData(this, Paths.get(this.workPath + "/metadata.txt"));
       }
     } catch (UncheckedIOException e) {
+      System.out.println(e);
       return null;
     }
 
@@ -544,6 +550,53 @@ public class InvertedIndexManager {
       return res;
     } catch (RuntimeException e) {
       return new InvertedIndexSegmentForTest(new HashMap<>(), new HashMap<>());
+    }
+  }
+
+  /** multi-thread merge */
+  static class ParallelMerge extends Thread {
+    final Map<Integer, SegmentEntry> metaData;
+    String put;
+    InvertedIndex inv1;
+    InvertedIndex inv2;
+    Integer desSegId;
+
+    public ParallelMerge(
+        String name,
+        String path,
+        final Map<Integer, SegmentEntry> metaData,
+        SegmentEntry s1,
+        SegmentEntry s2,
+        Integer desSegId) {
+      super(name);
+      this.put = s1.getName() + " " + s2.getName();
+      this.inv1 = s1.openInvertedList(path);
+      this.inv2 = s2.openInvertedList(path);
+      this.desSegId = desSegId;
+      this.metaData = metaData;
+    }
+
+    public void run() {
+      try {
+        System.out.println(
+            "Start merge: " + this.put + ",thread name is ：" + Thread.currentThread().getName());
+        InvertedIndex inv = inv1.merge(inv2);
+        SegmentEntry entry =
+            new SegmentEntry(
+                inv.getSegmentName(), inv.getHeaderLen(), inv.getHeaderNum(), inv.getDocNum());
+
+        synchronized (this.metaData) {
+          this.metaData.put(this.desSegId, entry);
+        }
+      } catch (RuntimeException e) {
+        e.printStackTrace();
+      }
+      System.out.println(
+          "Merge: "
+              + this.put
+              + ",thread name is ："
+              + Thread.currentThread().getName()
+              + "finished");
     }
   }
 }
