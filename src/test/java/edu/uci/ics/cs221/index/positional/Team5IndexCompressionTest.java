@@ -25,7 +25,7 @@ import static org.junit.Assert.assertFalse;
 
 public class Team5IndexCompressionTest {
   private DeltaVarLenCompressor compressor = new DeltaVarLenCompressor();
-  private NaiveCompressor naiveCompressor = new NaiveCompressor();
+  private NaiveCompressor naivecompressor = new NaiveCompressor();
   private String path1 = "./index/Team5IndexCompressionTest/naive_compress";
   private String path2 = "./index/Team5IndexCompressionTest/compress";
   private Analyzer analyzer = new ComposableAnalyzer(new PunctuationTokenizer(), new PorterStemmer());
@@ -43,8 +43,8 @@ public class Team5IndexCompressionTest {
     if (!directory2.exists()) {
       directory2.mkdirs();
     }
-    positional_list_naive_compressor=InvertedIndexManager.createOrOpenPositional(path1,analyzer,compressor);
-    positional_list_compressor=InvertedIndexManager.createOrOpenPositional(path2,analyzer,naiveCompressor);
+    positional_list_naive_compressor=InvertedIndexManager.createOrOpenPositional(path1,analyzer,naivecompressor);
+    positional_list_compressor=InvertedIndexManager.createOrOpenPositional(path2,analyzer,compressor);
   }
 
   //test empty document input
@@ -262,7 +262,7 @@ public class Team5IndexCompressionTest {
     Arrays.sort(data);
     List<Integer> list = Ints.asList(data);
     byte[] encoded = compressor.encode(list);
-    byte[] naiveencoded = naiveCompressor.encode(list);
+    byte[] naiveencoded = naivecompressor.encode(list);
     System.out.println((double)encoded.length / naiveencoded.length);
     System.out.println(encoded.length + " "+ naiveencoded.length);
   }
