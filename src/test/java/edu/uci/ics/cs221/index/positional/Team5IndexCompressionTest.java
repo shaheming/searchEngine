@@ -47,7 +47,7 @@ public class Team5IndexCompressionTest {
     positional_list_compressor=InvertedIndexManager.createOrOpenPositional(path2,analyzer,naiveCompressor);
   }
 
-  //test empty input (no document added for both)
+  //test empty document input
   @Test
   public void Test1() {
     Assert.assertEquals(0, PageFileChannel.readCounter);
@@ -73,7 +73,7 @@ public class Team5IndexCompressionTest {
     Assert.assertTrue(naive_wc==compress_wc);//0
   }
 
-  //test simple and same documents, can each key word show only one time
+  //test simple documents with same text, each key word show only one time each document
   @Test
   public void Test2() {
     Assert.assertEquals(0, PageFileChannel.readCounter);
@@ -99,9 +99,11 @@ public class Team5IndexCompressionTest {
     Assert.assertTrue(naive_wc<compress_wc);
   }
 
-  //test docs with different text and key words show multiple times in a single document
+  //test docs with different text and each key word show multiple times in multiple document
   @Test
   public void Test3() {
+    Assert.assertEquals(0, PageFileChannel.readCounter);
+    Assert.assertEquals(0, PageFileChannel.writeCounter);
     for(int i=0;i<3000;i++){
       positional_list_naive_compressor.addDocument(new Document("cat Dot cat Dog I can not tell the difference between cat and Dog"));
       positional_list_naive_compressor.addDocument(new Document("cat and dog have a lot of difference"));
@@ -131,10 +133,17 @@ public class Team5IndexCompressionTest {
     Assert.assertTrue(naive_wc<compress_wc);
   }
 
+  //test docs with different text and each key word show multiple times only in a document
   @Test
   public void Test4() {
-    for(int i=0;i<10000;i++)
-      positional_list_naive_compressor.addDocument(new Document("cat Dot"));
+    Assert.assertEquals(0, PageFileChannel.readCounter);
+    Assert.assertEquals(0, PageFileChannel.writeCounter);
+    for(int i=0;i<3000;i++){
+      positional_list_naive_compressor.addDocument(new Document("cat cat cat and dog dog dog"));
+      positional_list_naive_compressor.addDocument(new Document("pepsi pepsi pepsi or coke coke coke"));
+      positional_list_naive_compressor.addDocument(new Document("microsoft microsoft microsoft vs apple apple apple"));
+    }
+
     for(int i=0;i<positional_list_naive_compressor.getNumSegments();i++){
       positional_list_naive_compressor.getIndexSegmentPositional(i);
     }
@@ -142,8 +151,12 @@ public class Team5IndexCompressionTest {
     int naive_rc=PageFileChannel.readCounter;
     PageFileChannel.resetCounters();
 
-    for(int i=0;i<10000;i++)
-      positional_list_compressor.addDocument(new Document("cat Dot"));
+    for(int i=0;i<3000;i++){
+      positional_list_compressor.addDocument(new Document("cat cat cat and dog dog dog"));
+      positional_list_compressor.addDocument(new Document("pepsi pepsi pepsi or coke coke coke"));
+      positional_list_compressor.addDocument(new Document("microsoft microsoft microsoft vs apple apple apple"));
+    }
+
     for(int i=0;i<positional_list_compressor.getNumSegments();i++){
       positional_list_compressor.getIndexSegmentPositional(i);
     }
