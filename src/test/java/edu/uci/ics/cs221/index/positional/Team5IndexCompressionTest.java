@@ -10,19 +10,18 @@ import edu.uci.ics.cs221.index.inverted.InvertedIndexManager;
 import edu.uci.ics.cs221.index.inverted.NaiveCompressor;
 
 import java.io.File;
-import java.util.Collections;
+import java.util.*;
 
 import edu.uci.ics.cs221.index.inverted.PageFileChannel;
+import edu.uci.ics.cs221.storage.Document;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.lang.reflect.Array;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Random;
+
+import static org.junit.Assert.assertFalse;
 
 public class Team5IndexCompressionTest {
   private DeltaVarLenCompressor compressor = new DeltaVarLenCompressor();
@@ -31,12 +30,7 @@ public class Team5IndexCompressionTest {
   private String path2 = "./index/Team5IndexCompressionTest/compress";
   private Analyzer analyzer = new ComposableAnalyzer(new PunctuationTokenizer(), new PorterStemmer());
   private InvertedIndexManager positional_list_naive_compressor;
-  private InvertedIndexManager positional_list_compresspor;
-
-  private List<Integer> positional_list_empty=new ArrayList<>();
-  private List<Integer> positional_list1=new ArrayList<>();
-  private List<Integer> positional_list2=new ArrayList<>();
-  private List<Integer> positional_list3=new ArrayList<>();
+  private InvertedIndexManager positional_list_compressor;
 
 
   @Before
@@ -50,18 +44,60 @@ public class Team5IndexCompressionTest {
       directory2.mkdirs();
     }
     positional_list_naive_compressor=InvertedIndexManager.createOrOpenPositional(path1,analyzer,compressor);
-    positional_list_compresspor=InvertedIndexManager.createOrOpenPositional(path2,analyzer,naiveCompressor);
+    positional_list_compressor=InvertedIndexManager.createOrOpenPositional(path2,analyzer,naiveCompressor);
+  }
 
+  //test empty input (no document added for both)
+  @Test
+  public void Test1() {
+    Assert.assertEquals(0, PageFileChannel.readCounter);
+    Assert.assertEquals(0, PageFileChannel.writeCounter);
+  }
+
+  //test simple and same documents
+  @Test
+  public void Test2() {
+    for(int i=0;i<10000;i++)
+      positional_list_naive_compressor.addDocument(new Document("cat Dot"));
+    for(int i=0;i<positional_list_naive_compressor.getNumSegments();i++){
+      positional_list_naive_compressor.getIndexSegmentPositional(i);
+    }
+    int naive_wc=PageFileChannel.writeCounter;
+    int naive_rc=PageFileChannel.readCounter;
+    PageFileChannel.resetCounters();
+
+    for(int i=0;i<10000;i++)
+      positional_list_compressor.addDocument(new Document("cat Dot"));
+    for(int i=0;i<positional_list_compressor.getNumSegments();i++){
+      positional_list_compressor.getIndexSegmentPositional(i);
+    }
+    int compress_wc=PageFileChannel.writeCounter;
+    int compress_rc=PageFileChannel.readCounter;
+
+    Assert.assertTrue(naive_rc<compress_rc);
+    Assert.assertTrue(naive_wc<compress_wc);
+  }
+
+
+  @Test
+  public void Test3() {
     for(int i=0;i<100;i++) positional_list1.add(i);//small number(sorted)
     for(int i=0;i<10000;i++) positional_list2.add(i);//big number(sorted)
     for(int i=0;i<10000;i++) {
       positional_list3.add((int)Math.random()%100);//random number(sorted)
       Collections.sort(positional_list3);
     }
-
   }
 
-
+  @Test
+  public void Test4() {
+    for(int i=0;i<100;i++) positional_list1.add(i);//small number(sorted)
+    for(int i=0;i<10000;i++) positional_list2.add(i);//big number(sorted)
+    for(int i=0;i<10000;i++) {
+      positional_list3.add((int)Math.random()%100);//random number(sorted)
+      Collections.sort(positional_list3);
+    }
+  }
 
 
 
@@ -162,8 +198,6 @@ public class Team5IndexCompressionTest {
 
 
 
-
-
   @After
   public void cleanup()  {
     PageFileChannel.resetCounters();
@@ -173,10 +207,5 @@ public class Team5IndexCompressionTest {
       file.delete();
     }
     f.delete();
-
-    positional_list_empty.clear();
-    positional_list1.clear();
-    positional_list2.clear();
-    positional_list3.clear();
   }
 }
