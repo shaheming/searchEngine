@@ -99,8 +99,8 @@ public class Team5IndexCompressionTest {
     int compress_wc=PageFileChannel.writeCounter;
     int compress_rc=PageFileChannel.readCounter;
 
-    Assert.assertTrue(naive_rc<compress_rc);
-    Assert.assertTrue(naive_wc<compress_wc);
+    Assert.assertTrue(naive_rc>2*compress_rc);
+    Assert.assertTrue(naive_wc>2*compress_wc);
   }
 
   //test docs with different text and each key word show multiple times in multiple document
@@ -133,8 +133,8 @@ public class Team5IndexCompressionTest {
     int compress_wc=PageFileChannel.writeCounter;
     int compress_rc=PageFileChannel.readCounter;
 
-    Assert.assertTrue(naive_rc<compress_rc);
-    Assert.assertTrue(naive_wc<compress_wc);
+    Assert.assertTrue(naive_rc>2*compress_rc);
+    Assert.assertTrue(naive_wc>2*compress_wc);
   }
 
   //test docs with different text and each key word show multiple times only in a document
@@ -173,106 +173,11 @@ public class Team5IndexCompressionTest {
     int compress_wc=PageFileChannel.writeCounter;
     int compress_rc=PageFileChannel.readCounter;
 
-    Assert.assertTrue(naive_rc<compress_rc);
-    Assert.assertTrue(naive_wc<compress_wc);
+    Assert.assertTrue(naive_rc>2*compress_rc);
+    Assert.assertTrue(naive_wc>2*compress_wc);
   }
 
 
-
-  /**
-   * Test time consumption for compress a large amount of integer.
-   * Test the correctness of encode and decode
-   * @throws Exception
-   */
-  @Test
-  public void stressTest() throws Exception {
-    Random r = new Random(System.currentTimeMillis());
-    int SIZE = 10000000;
-    int data[] = r.ints(SIZE, 0, SIZE).toArray();
-    System.out.println("Test compress " + SIZE + " ints.");
-    Arrays.sort(data);
-    List<Integer> list = Ints.asList(data);
-    System.out.println("Start encode");
-    long start = System.currentTimeMillis();
-    DeltaVarLenCompressor compressor = new DeltaVarLenCompressor();
-    byte[] encoded = compressor.encode(list);
-    long finish = System.currentTimeMillis();
-    long timeElapsed = finish - start;
-    System.out.println("Encode end, use: " + timeElapsed * 1.0 / 1000 + " s");
-
-    start = System.currentTimeMillis();
-    System.out.println("Start decode");
-    List<Integer> decoded = compressor.decode(encoded, 0, encoded.length);
-    finish = System.currentTimeMillis();
-    timeElapsed = finish - start;
-    System.out.println("Decode end, use: " + timeElapsed * 1.0 / 1000 + " s");
-
-    for (int i = 0; i < data.length; i++) {
-      Assert.assertTrue(data[i] == decoded.get(i));
-    }
-  }
-
-  /**
-   * Test time consumption for compress a large amount of integer.
-   * Test the correctness of encode and decode
-   * @throws Exception
-   */
-  @Test
-  public void stressTest2() throws Exception {
-    Random r = new Random(System.currentTimeMillis());
-    int SIZE = 100000000;
-    int data[] = r.ints(SIZE, 0, SIZE).toArray();
-    System.out.println("Test compress " + SIZE + " ints.");
-    Arrays.sort(data);
-    List<Integer> list = Ints.asList(data);
-    System.out.println("Start encode");
-    long start = System.currentTimeMillis();
-    DeltaVarLenCompressor compressor = new DeltaVarLenCompressor();
-    byte[] encoded = compressor.encode(list);
-    long finish = System.currentTimeMillis();
-    long timeElapsed = finish - start;
-    System.out.println("Encode end, use: " + timeElapsed * 1.0 / 1000 + " s");
-
-    start = System.currentTimeMillis();
-    System.out.println("Start decode");
-    List<Integer> decoded = compressor.decode(encoded, 0, encoded.length);
-    finish = System.currentTimeMillis();
-    timeElapsed = finish - start;
-    System.out.println("Decode end, use: " + timeElapsed * 1.0 / 1000 + " s");
-
-    for (int i = 0; i < data.length; i++) {
-      Assert.assertTrue(data[i] == decoded.get(i));
-    }
-  }
-  /* Test corner case
-   *
-   */
-  @Test
-  public void emptyInputTest() throws Exception {
-    DeltaVarLenCompressor compressor = new DeltaVarLenCompressor();
-    byte[] encoded = compressor.encode(new ArrayList<>());
-    Assert.assertEquals(0, encoded.length);
-    List<Integer> decoded = compressor.decode(encoded, 0, encoded.length);
-    Assert.assertEquals(0, decoded.size());
-  }
-
-  /* Test corner case
-   *
-   */
-  @Test
-  public void commpressionRatioTest1() throws Exception {
-
-    int SIZE = 10000000;
-    Random r = new Random(System.currentTimeMillis());
-    int data[] = r.ints(SIZE, 0, SIZE).toArray();
-    System.out.println("Test compress " + SIZE + " ints.");
-    Arrays.sort(data);
-    List<Integer> list = Ints.asList(data);
-    byte[] encoded = compressor.encode(list);
-    byte[] naiveencoded = naivecompressor.encode(list);
-    System.out.println((double)encoded.length / naiveencoded.length);
-    System.out.println(encoded.length + " "+ naiveencoded.length);
-  }
 
 
 
