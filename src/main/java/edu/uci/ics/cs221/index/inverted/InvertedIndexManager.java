@@ -60,9 +60,10 @@ class SegmentEntry {
     }
   }
 
-  InvertedIndex openInvertedList(String workPath) {
+  InvertedIndex openInvertedList(String workPath, Compressor compressor) {
     return InvertedIndex.openInvertList(workPath, this.getName(), this.headerLen, this.headerNum)
-        .setRemovedDocIdx(this.getRemovedDocsIdx());
+        .setRemovedDocIdx(this.getRemovedDocsIdx())
+        .setCompressor(compressor);
   }
 
   public String getName() {
@@ -110,13 +111,15 @@ public class InvertedIndexManager {
 
   private InvertedIndexManager(String indexFolder, Analyzer analyzer) {
     this.analyzer = analyzer;
-    this.currInvertIndex = new InvertedIndex(indexFolder);
+    this.currInvertIndex = new InvertedIndex(indexFolder, this.compressor);
     this.workPath = indexFolder;
   }
 
   private InvertedIndexManager(String indexFolder, Analyzer analyzer, Compressor compressor) {
-    new InvertedIndexManager(indexFolder, analyzer);
     this.compressor = compressor;
+    this.analyzer = analyzer;
+    this.currInvertIndex = new InvertedIndex(indexFolder, compressor);
+    this.workPath = indexFolder;
   }
 
   /**
@@ -252,12 +255,14 @@ public class InvertedIndexManager {
     if (!this.segmentMetaData.containsKey(segmentNum)) return null;
     SegmentEntry entry = this.segmentMetaData.get(segmentNum);
     try {
-      InvertedIndex inv = entry.openInvertedList(this.workPath);
+      InvertedIndex inv = entry.openInvertedList(this.workPath, this.compressor);
       PositionalIndexSegmentForTest res =
-          new PositionalIndexSegmentForTest(inv.getAllInvertList(), inv.getAllDocuments(),inv.getAllpositionList());
+          new PositionalIndexSegmentForTest(
+              inv.getAllInvertList(), inv.getAllDocuments(), inv.getAllpositionList());
       inv.close();
       return res;
     } catch (RuntimeException e) {
+      e.printStackTrace();
       return new PositionalIndexSegmentForTest(
           new HashMap<>(), new HashMap<>(), HashBasedTable.create());
     }
@@ -309,7 +314,7 @@ public class InvertedIndexManager {
             oldInvertList.getHeaderNum(),
             oldInvertList.getDocNum()));
     this.writeIndexMetaData();
-    this.currInvertIndex = new InvertedIndex(this.workPath);
+    this.currInvertIndex = new InvertedIndex(this.workPath, this.compressor);
 
     if (this.segmentMetaData.size() >= DEFAULT_MERGE_THRESHOLD) {
       //      Runnable task =
@@ -371,7 +376,8 @@ public class InvertedIndexManager {
                   synchronizedMap,
                   it.next().getValue(),
                   it.next().getValue(),
-                  desSegId));
+                  desSegId,
+                  this.compressor));
           desSegId++;
         }
       }
@@ -387,8 +393,8 @@ public class InvertedIndexManager {
       Iterator<Map.Entry<Integer, SegmentEntry>> it = this.segmentMetaData.entrySet().iterator();
       SegmentEntry s1 = it.next().getValue();
       SegmentEntry s2 = it.next().getValue();
-      InvertedIndex inv1 = s1.openInvertedList(this.workPath);
-      InvertedIndex inv2 = s2.openInvertedList(this.workPath);
+      InvertedIndex inv1 = s1.openInvertedList(this.workPath, this.compressor);
+      InvertedIndex inv2 = s2.openInvertedList(this.workPath, this.compressor);
       InvertedIndex inv = inv1.merge(inv2);
       SegmentEntry entry =
           new SegmentEntry(
@@ -466,7 +472,9 @@ public class InvertedIndexManager {
         Runnable runnableTask =
             () -> {
               Map<String, Document> dos =
-                  entry.openInvertedList(this.workPath).searchQuery(token, searchMethod);
+                  entry
+                      .openInvertedList(this.workPath, this.compressor)
+                      .searchQuery(token, searchMethod);
               synchronized (synchronizedMap) {
                 synchronizedMap.putAll(dos);
               }
@@ -516,7 +524,7 @@ public class InvertedIndexManager {
     }
     ArrayList<Document> docs = new ArrayList<>();
     for (SegmentEntry entry : this.segmentMetaData.values()) {
-      InvertedIndex inv = entry.openInvertedList(this.workPath);
+      InvertedIndex inv = entry.openInvertedList(this.workPath, this.compressor);
       docs.addAll(inv.getAllDocuments().values());
       inv.close();
     }
@@ -542,7 +550,10 @@ public class InvertedIndexManager {
         Runnable runnableTask =
             () -> {
               ArrayList<Integer> removedDocIds =
-                  entry.getValue().openInvertedList(this.workPath).deleteDocuments(key);
+                  entry
+                      .getValue()
+                      .openInvertedList(this.workPath, this.compressor)
+                      .deleteDocuments(key);
               synchronized (synchronizedMap) {
                 synchronizedMap.put(entry.getKey(), removedDocIds);
               }
@@ -587,7 +598,7 @@ public class InvertedIndexManager {
     if (!this.segmentMetaData.containsKey(segmentNum)) return null;
     SegmentEntry entry = this.segmentMetaData.get(segmentNum);
     try {
-      InvertedIndex inv = entry.openInvertedList(this.workPath);
+      InvertedIndex inv = entry.openInvertedList(this.workPath, this.compressor);
       InvertedIndexSegmentForTest res =
           new InvertedIndexSegmentForTest(inv.getAllInvertList(), inv.getAllDocuments());
       inv.close();
@@ -611,11 +622,12 @@ public class InvertedIndexManager {
         final Map<Integer, SegmentEntry> metaData,
         SegmentEntry s1,
         SegmentEntry s2,
-        Integer desSegId) {
+        Integer desSegId,
+        Compressor compressor) {
       super(name);
       this.put = s1.getName() + " " + s2.getName();
-      this.inv1 = s1.openInvertedList(path);
-      this.inv2 = s2.openInvertedList(path);
+      this.inv1 = s1.openInvertedList(path, compressor);
+      this.inv2 = s2.openInvertedList(path, compressor);
       this.desSegId = desSegId;
       this.metaData = metaData;
     }
@@ -623,7 +635,7 @@ public class InvertedIndexManager {
     public void run() {
       try {
         System.out.println(
-            "Start merge: " + this.put + ",thread name is ：" + Thread.currentThread().getName());
+            "Start merge: " + this.put + ",thread name is: " + Thread.currentThread().getName());
         InvertedIndex inv = inv1.merge(inv2);
         SegmentEntry entry =
             new SegmentEntry(
@@ -638,7 +650,7 @@ public class InvertedIndexManager {
       System.out.println(
           "Merge: "
               + this.put
-              + ",thread name is ："
+              + ",thread name is: "
               + Thread.currentThread().getName()
               + "finished");
     }

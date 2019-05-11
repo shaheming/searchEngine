@@ -12,7 +12,9 @@ public class DeltaVarLenCompressor implements Compressor {
 
   @Override
   public byte[] encode(List<Integer> integers) {
-    if (integers.isEmpty()) return new byte[0];
+    if (integers.isEmpty()) {
+      return new byte[0];
+    }
 
     ByteArrayOutputStream encoded = new ByteArrayOutputStream();
     Stack<Byte> bytestack = new Stack<>();
