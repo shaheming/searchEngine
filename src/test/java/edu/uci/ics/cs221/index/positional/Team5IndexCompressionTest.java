@@ -33,6 +33,7 @@ public class Team5IndexCompressionTest {
 
   @Before
   public void setup() {
+    InvertedIndexManager.DEFAULT_FLUSH_THRESHOLD = 10001;
     File directory1 = new File(path1);
     if (!directory1.exists()) {
       directory1.mkdirs();
