@@ -23,7 +23,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 // class postingList
 class LRUPageCache {
-  private Integer capacity = 3;
+  private Integer capacity = 5;
   private Map<Integer, SimpleEntry<Integer, ByteBuffer>> map = new HashMap<>();
   private LinkedList<SimpleEntry<Integer, ByteBuffer>> list = new LinkedList<>();
 
@@ -221,6 +221,141 @@ class InvertedIndexHeaderEntry {
   }
 }
 
+class PageReadBuffer implements AutoCloseable {
+  private PageFileChannel pageChannel;
+  private LRUPageCache LRUCache;
+  private String filePath;
+  private Integer poisition = 0;
+  private PageIterator pit;
+  private ByteBuffer pageBuffer;
+
+  PageReadBuffer(String filePath) {
+    this.filePath = filePath;
+    LRUCache = new LRUPageCache();
+  }
+
+  public Boolean isOpen() {
+    return this.pageChannel != null;
+  }
+
+  public boolean openChannel() {
+    if (this.pageChannel != null) {
+      try {
+        this.pageChannel.close();
+      } catch (Exception e) {
+      }
+    }
+    this.pageChannel = PageFileChannel.createOrOpen(Paths.get(filePath));
+    return true;
+  }
+
+  public void setPoisition(Integer ptr) {
+    this.poisition = ptr;
+    int startPage = ptr / PageFileChannel.PAGE_SIZE;
+    int offset = startPage > 0 ? ptr - startPage * PageFileChannel.PAGE_SIZE : ptr;
+    pit = new PageIterator<>(startPage);
+    pageBuffer = pit.next();
+    pageBuffer.position(offset);
+  }
+
+  public void movePtrNBytes(Integer N) {
+    if (!this.pit.hasNext() && this.pageBuffer.remaining() < N) {
+      throw new RuntimeException("Out of range");
+    }
+    do {
+      if (pageBuffer.remaining() > N) {
+        pageBuffer.position(pageBuffer.position() + N);
+        break;
+      } else {
+        N -= pageBuffer.remaining();
+        pageBuffer = pit.next();
+      }
+    } while (pit != null && (pit.hasNext() || pageBuffer.remaining() > 0));
+  }
+
+  public Integer readListLen() {
+    Preconditions.checkNotNull(this.pit);
+    Preconditions.checkNotNull(this.pageBuffer);
+    int counter = 0;
+    ByteBuffer intBuffer = ByteBuffer.allocate(InvertedIndexHeaderEntry.docIdByteSize);
+    while (true) {
+      if (intBuffer.position() > 0) {
+        while (intBuffer.hasRemaining()) {
+          intBuffer.put(this.pageBuffer.get());
+        }
+        intBuffer.flip();
+        counter = intBuffer.getInt();
+        intBuffer.clear();
+        break;
+      }
+      while (this.pageBuffer.hasRemaining() && intBuffer.hasRemaining()) {
+        intBuffer.put(this.pageBuffer.get());
+      }
+      if (!intBuffer.hasRemaining()) {
+        intBuffer.flip();
+        counter = intBuffer.getInt();
+        intBuffer.clear();
+        break;
+      }
+      this.pageBuffer = pit.next();
+    }
+    return counter;
+  }
+
+  public ByteOutputStream readNBytes(Integer n) {
+    ByteOutputStream byteSteam = new ByteOutputStream();
+    while (n > 0) {
+      int len =
+          this.pageBuffer.capacity() - pageBuffer.position() > n
+              ? n
+              : pageBuffer.capacity() - pageBuffer.position();
+      byteSteam.write(pageBuffer.array(), pageBuffer.position(), len);
+      n -= len;
+      if (n <= 0) break;
+      pageBuffer = pit.next();
+    }
+    return byteSteam;
+  }
+
+  private ByteBuffer readPage(int pageNum) {
+    ByteBuffer buffer = LRUCache.get(pageNum);
+    if (buffer == null) {
+      buffer = this.pageChannel.readPage(pageNum);
+      LRUCache.put(pageNum, buffer);
+    }
+    return buffer;
+  }
+
+  @Override
+  public void close() {
+    if (this.pageChannel != null) this.pageChannel.close();
+  }
+
+  private class PageIterator<k> implements Iterator {
+
+    int index;
+    int max;
+
+    PageIterator(Integer startPage) {
+      index = startPage;
+      this.max = pageChannel.getNumPages();
+    }
+
+    @Override
+    public ByteBuffer next() {
+      if (this.hasNext()) {
+        return readPage(index++);
+      }
+      return null;
+    }
+
+    @Override
+    public boolean hasNext() {
+      return this.index < this.max;
+    }
+  }
+}
+
 /** This class is the data structure of the invertedIndex in the memory */
 public class InvertedIndex implements AutoCloseable {
   protected Map<Integer, Document> documents = new HashMap<>();
@@ -246,7 +381,8 @@ public class InvertedIndex implements AutoCloseable {
   private LRUPageCache postingListLRU = new LRUPageCache();
   private LRUPageCache positionListLRU = new LRUPageCache();
   private ByteOutputStream positListBuffer = null;
-
+  private PageReadBuffer postingListPageBuffer = null;
+  private PageReadBuffer postitionListPageBuffer = null;
   /** @param workPath the path of work dir */
   public InvertedIndex(String workPath) {
     InitFilePath(workPath, getTimeStamp());
@@ -300,6 +436,8 @@ public class InvertedIndex implements AutoCloseable {
     this.headerNum = headerNum;
     Path indexPath = Paths.get(this.invertListPath);
     Path indexDocPath = Paths.get(this.docStorePath);
+    this.postingListPageBuffer = new PageReadBuffer(this.invertListPath);
+    this.postitionListPageBuffer = new PageReadBuffer(this.positionListPath);
     if (this.invertedListFileChannel == null) {
       this.invertedListFileChannel = PageFileChannel.createOrOpen(Paths.get(this.invertListPath));
     }
@@ -335,6 +473,14 @@ public class InvertedIndex implements AutoCloseable {
     InvertedIndex inv = new InvertedIndex(indexFolder, indexName, headerLen, headerNum);
 
     return inv;
+  }
+
+  private static Integer getPtrPageNum(Integer ptr) {
+    return ptr / PageFileChannel.PAGE_SIZE;
+  }
+
+  private static Integer getPtrOffset(Integer pageNum, Integer ptr) {
+    return pageNum > 0 ? ptr - pageNum * PageFileChannel.PAGE_SIZE : ptr;
   }
 
   private void calHeaderLen() {
@@ -712,77 +858,29 @@ public class InvertedIndex implements AutoCloseable {
   }
 
   private ArrayList<Integer> readDocIds(InvertedIndexHeaderEntry entry) {
-    int pageStart = getPtrPageNum(entry.getDocIdListPtr());
-    int offset = getPtrOffset(pageStart, entry.getDocIdListPtr());
-
-    ArrayList<Integer> docIds = new ArrayList<>();
-    PostiListPageIterator pit = new PostiListPageIterator(pageStart);
-    ByteBuffer buffer = pit.next();
-    buffer.position(offset);
-
-    SimpleEntry<Integer, ByteBuffer> out = getListLen(buffer, pit);
-    buffer = out.getValue();
-    int counter = out.getKey();
-
-    ByteOutputStream bytesteam = readDocIdsFromPage(buffer, pit, counter);
-    if (bytesteam.getCount() > 0) {
-      List<Integer> idx = compressor.decode(bytesteam.getBytes(), 0, bytesteam.getCount());
-      docIds.addAll(idx);
+    //    int pageStart = getPtrPageNum(entry.getDocIdListPtr());
+    //    int offset = getPtrOffset(pageStart, entry.getDocIdListPtr());
+    //
+    //    ArrayList<Integer> docIds = new ArrayList<>();
+    //    PostiListPageIterator pit = new PostiListPageIterator(pageStart);
+    //    ByteBuffer buffer = pit.next();
+    //    buffer.position(offset);
+    //
+    //    SimpleEntry<Integer, ByteBuffer> out = getListLen(buffer, pit);
+    //    buffer = out.getValue();
+    if (!this.postingListPageBuffer.isOpen()) {
+      this.postingListPageBuffer.openChannel();
     }
+    this.postingListPageBuffer.setPoisition(entry.getDocIdListPtr());
+    int counter = this.postingListPageBuffer.readListLen();
+    ByteOutputStream bytesteam = this.postingListPageBuffer.readNBytes(counter);
+    ArrayList<Integer> docIds = new ArrayList<>();
+    List<Integer> idx = compressor.decode(bytesteam.getBytes(), 0, bytesteam.getCount());
+    docIds.addAll(idx);
+
     //    System.out.println(entry.getKey() + Arrays.toString(docIds.toArray()));
 
     return docIds;
-  }
-
-  private static Integer getPtrPageNum(Integer ptr) {
-    return ptr / PageFileChannel.PAGE_SIZE;
-  }
-
-  private static Integer getPtrOffset(Integer pageNum, Integer ptr) {
-    return pageNum > 0 ? ptr - pageNum * PageFileChannel.PAGE_SIZE : ptr;
-  }
-
-  private ByteOutputStream readDocIdsFromPage(
-      ByteBuffer buffer, Iterator<ByteBuffer> pit, Integer counter) {
-    ByteOutputStream byteSteam = new ByteOutputStream();
-    while (counter > 0) {
-      int len =
-          buffer.capacity() - buffer.position() > counter
-              ? counter
-              : buffer.capacity() - buffer.position();
-      byteSteam.write(buffer.array(), buffer.position(), len);
-      counter -= len;
-      if (counter <= 0) break;
-      buffer = pit.next();
-    }
-    return byteSteam;
-  }
-
-  private SimpleEntry<Integer, ByteBuffer> getListLen(ByteBuffer buffer, Iterator<ByteBuffer> pit) {
-    int counter;
-    ByteBuffer intBuffer = ByteBuffer.allocate(InvertedIndexHeaderEntry.docIdByteSize);
-    while (true) {
-      if (intBuffer.position() > 0) {
-        while (intBuffer.hasRemaining()) {
-          intBuffer.put(buffer.get());
-        }
-        intBuffer.flip();
-        counter = intBuffer.getInt();
-        intBuffer.clear();
-        break;
-      }
-      while (buffer.hasRemaining() && intBuffer.hasRemaining()) {
-        intBuffer.put(buffer.get());
-      }
-      if (!intBuffer.hasRemaining()) {
-        intBuffer.flip();
-        counter = intBuffer.getInt();
-        intBuffer.clear();
-        break;
-      }
-      buffer = pit.next();
-    }
-    return new SimpleEntry<>(counter, buffer);
   }
 
   private LinkedList<Integer> getRemovedDocIdx() {
@@ -1089,124 +1187,32 @@ public class InvertedIndex implements AutoCloseable {
   }
 
   private ByteOutputStream readRawPositionList(Integer ptr) {
-    int startPageNum = getPtrPageNum(ptr);
-    int offset = getPtrOffset(startPageNum, ptr);
-
-    PositionListPageIterator<ByteBuffer> pit = new PositionListPageIterator<>(startPageNum);
-    ByteBuffer buffer = pit.next();
-    buffer.position(offset);
-
-    SimpleEntry<Integer, ByteBuffer> out = getListLen(buffer, pit);
-    buffer = out.getValue();
-    int counter = out.getKey();
-    return readDocIdsFromPage(buffer, pit, counter);
+    if (!this.postitionListPageBuffer.isOpen()) {
+      this.postitionListPageBuffer.openChannel();
+    }
+    this.postitionListPageBuffer.setPoisition(ptr);
+    int counter = this.postitionListPageBuffer.readListLen();
+    return this.postitionListPageBuffer.readNBytes(counter);
   }
 
   private ArrayList<Integer> readPositionListPtrs(InvertedIndexHeaderEntry entry) {
-    int pageStart = getPtrPageNum(entry.getDocIdListPtr());
-    int offset = getPtrOffset(pageStart, entry.getDocIdListPtr());
-
-    ArrayList<Integer> positonPtrs = new ArrayList<>();
-    PostiListPageIterator pit = new PostiListPageIterator<ByteBuffer>(pageStart);
-    ByteBuffer buffer = pit.next();
-    buffer.position(offset);
-
-    SimpleEntry<Integer, ByteBuffer> out = getListLen(buffer, pit);
-    buffer = out.getValue();
-    int counter = out.getKey();
-    // skip the invert list;
-    do {
-      if (buffer.remaining() > counter) {
-        buffer.position(buffer.position() + counter);
-        break;
-      } else {
-        counter -= buffer.remaining();
-        buffer = pit.next();
-      }
-    } while (pit != null && (pit.hasNext() || buffer.remaining() > 0));
-
-    out = getListLen(buffer, pit);
-    buffer = out.getValue();
-    counter = out.getKey();
-
-    ByteOutputStream bytesteam = readDocIdsFromPage(buffer, pit, counter);
-
-    if (bytesteam.getCount() > 0) {
-      List<Integer> ptrs = compressor.decode(bytesteam.getBytes(), 0, bytesteam.getCount());
-      positonPtrs.addAll(ptrs);
+    if (!this.postingListPageBuffer.isOpen()) {
+      this.postingListPageBuffer.openChannel();
     }
-    return positonPtrs;
+    this.postingListPageBuffer.setPoisition(entry.getDocIdListPtr());
+    int counter = this.postingListPageBuffer.readListLen();
+    this.postingListPageBuffer.movePtrNBytes(counter);
+    // skip the invert list;
+
+    counter = this.postingListPageBuffer.readListLen();
+
+    ByteOutputStream bytesteam = this.postingListPageBuffer.readNBytes(counter);
+    List<Integer> ptrs = compressor.decode(bytesteam.getBytes(), 0, bytesteam.getCount());
+    return new ArrayList<>(ptrs);
   }
 
   public InvertedIndex setCompressor(Compressor compressor) {
-
     this.compressor = compressor;
     return this;
-  }
-
-  private class PostiListPageIterator<k> implements Iterator {
-
-    int index;
-    int max;
-
-    PostiListPageIterator(Integer startPage) {
-      index = startPage;
-      if (invertedListFileChannel == null) {
-        invertedListFileChannel = PageFileChannel.createOrOpen(Paths.get(invertListPath));
-      }
-      try {
-        this.max = invertedListFileChannel.getNumPages();
-      } catch (Exception e) {
-        //        e.printStackTrace();
-        invertedListFileChannel = PageFileChannel.createOrOpen(Paths.get(invertListPath));
-        this.max = invertedListFileChannel.getNumPages();
-      }
-    }
-
-    @Override
-    public ByteBuffer next() {
-      if (this.hasNext()) {
-        return readPostingListPage(index++);
-      }
-      return null;
-    }
-
-    @Override
-    public boolean hasNext() {
-      if (this.index < this.max) {
-        return true;
-      }
-      return false;
-    }
-  }
-
-  private class PositionListPageIterator<k> implements Iterator {
-
-    int index;
-    int max;
-
-    PositionListPageIterator(Integer startPage) {
-      index = startPage;
-      if (positionListFileChannel == null) {
-        positionListFileChannel = PageFileChannel.createOrOpen(Paths.get(positionListPath));
-      }
-      this.max = positionListFileChannel.getNumPages();
-    }
-
-    @Override
-    public ByteBuffer next() {
-      if (this.hasNext()) {
-        return readPositionListPage(index++);
-      }
-      return null;
-    }
-
-    @Override
-    public boolean hasNext() {
-      if (this.index < this.max) {
-        return true;
-      }
-      return false;
-    }
   }
 }
