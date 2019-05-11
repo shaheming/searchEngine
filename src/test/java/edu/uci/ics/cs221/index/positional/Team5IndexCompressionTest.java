@@ -47,6 +47,8 @@ public class Team5IndexCompressionTest {
         InvertedIndexManager.createOrOpenPositional(path2, analyzer, compressor);
   }
 
+  // test simple documents with same text, each key word show only one time each document
+  // mainly test inverted list since inverted list is long but positional list is short
   @Test
   public void Test1() {
     Assert.assertEquals(0, PageFileChannel.readCounter);
@@ -87,6 +89,7 @@ public class Team5IndexCompressionTest {
   public void Test2() {
     Assert.assertEquals(0, PageFileChannel.readCounter);
     Assert.assertEquals(0, PageFileChannel.writeCounter);
+
     for (int i = 0; i < 3000; i++) {
       positional_list_naive_compressor.addDocument(
           new Document("cat Dot cat Dog I can not tell the difference between cat and Dog"));
@@ -118,24 +121,40 @@ public class Team5IndexCompressionTest {
 
     Assert.assertTrue(naive_rc > 1.5 * compress_rc);
     Assert.assertTrue(naive_wc > 1.5 * compress_wc);
+
+    System.out.println("\033[0;32m");
+    System.out.println("Naive compress write: " + naive_wc + " pages");
+    System.out.println("Naive compress read: " + naive_rc + " pages");
+
+    System.out.println("Your compress write: " + compress_wc + " pages");
+    System.out.println("Your compress read: " + compress_rc + " pages");
+    System.out.println("\033[0m");
   }
 
   // test docs with different text and each key word show multiple times only in a document
   // mainly test positional  list since inverted  since  positional list is long
   @Test
   public void Test3() {
+
     Assert.assertEquals(0, PageFileChannel.readCounter);
     Assert.assertEquals(0, PageFileChannel.writeCounter);
     for (int i = 0; i < 3000; i++) {
       positional_list_naive_compressor.addDocument(
-          new Document(
-              "cat" + i + " cat" + i + " cat" + i + " and dog" + i + " dog" + i + " dog" + i));
+          new Document("cat" + " cat" + " cat" + " and dog" + " dog" + i + " dog" + i));
       positional_list_naive_compressor.addDocument(
-          new Document("pepsi" + i + " pepsi" + i + " pepsi" + i + " or coke" + i + " coke" + i + " coke" + i));
+          new Document("pepsi" + " pepsi" + " pepsi" + " or coke" + i + " coke" + " coke"));
       positional_list_naive_compressor.addDocument(
           new Document(
-              "microsoft" + i + " microsoft" + i + " microsoft" + i + " vs apple" + i + " apple" + i
-                  + " apple" + i));
+              "microsoft"
+                  + i
+                  + " microsoft"
+                  + i
+                  + " microsoft"
+                  + " vs apple"
+                  + " apple"
+                  + i
+                  + " apple"
+                  + i));
     }
     positional_list_naive_compressor.flush();
     for (int i = 0; i < positional_list_naive_compressor.getNumSegments(); i++) {
@@ -147,12 +166,21 @@ public class Team5IndexCompressionTest {
 
     for (int i = 0; i < 3000; i++) {
       positional_list_compressor.addDocument(
-              new Document("cat" + i + " cat" + i + " cat" + i + " and dog" + i + " dog" + i + " dog" + i));
+          new Document("cat" + " cat" + " cat" + " and dog" + " dog" + i + " dog" + i));
       positional_list_compressor.addDocument(
-              new Document("pepsi" + i + " pepsi" + i + " pepsi" + i + " or coke" + i + " coke" + i + " coke" + i));
+          new Document("pepsi" + " pepsi" + " pepsi" + " or coke" + i + " coke" + " coke"));
       positional_list_compressor.addDocument(
-              new Document("microsoft"+ i + " microsoft" + i + " microsoft" + i + " vs apple" + i + " apple" + i
-                              + " apple" + i));
+          new Document(
+              "microsoft"
+                  + i
+                  + " microsoft"
+                  + i
+                  + " microsoft"
+                  + " vs apple"
+                  + " apple"
+                  + i
+                  + " apple"
+                  + i));
     }
     positional_list_compressor.flush();
     for (int i = 0; i < positional_list_compressor.getNumSegments(); i++) {
@@ -228,7 +256,7 @@ public class Team5IndexCompressionTest {
   }
 
   @After
-  public void cleanup() throws Exception{
+  public void cleanup() throws Exception {
     PageFileChannel.resetCounters();
     Path rootPath = Paths.get("./index/Team5IndexCompressionTest");
     Files.walk(rootPath).sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
