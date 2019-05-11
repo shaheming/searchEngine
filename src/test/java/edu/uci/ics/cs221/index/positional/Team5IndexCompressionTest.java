@@ -15,10 +15,15 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Comparator;
 
 public class Team5IndexCompressionTest {
   private DeltaVarLenCompressor compressor = new DeltaVarLenCompressor();
   private NaiveCompressor naivecompressor = new NaiveCompressor();
+  private String path = "./index/Team5IndexCompressionTest";
   private String path1 = "./index/Team5IndexCompressionTest/naive_compress";
   private String path2 = "./index/Team5IndexCompressionTest/compress";
   private Analyzer analyzer =
@@ -255,13 +260,10 @@ public class Team5IndexCompressionTest {
   }
 
   @After
-  public void cleanup() {
+  public void cleanup() throws Exception{
     PageFileChannel.resetCounters();
-    File f = new File("./index/Team5IndexCompressionTest");
-    File[] files = f.listFiles();
-    for (File file : files) {
-      file.delete();
-    }
-    f.delete();
+    Path rootPath = Paths.get("./index/Team5IndexCompressionTest");
+    Files.walk(rootPath).sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
+    Files.deleteIfExists(rootPath);
   }
 }
