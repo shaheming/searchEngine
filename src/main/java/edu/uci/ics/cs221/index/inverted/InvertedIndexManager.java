@@ -2,6 +2,7 @@ package edu.uci.ics.cs221.index.inverted;
 // todo
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.HashBasedTable;
 import edu.uci.ics.cs221.analysis.Analyzer;
 import edu.uci.ics.cs221.storage.Document;
 
@@ -64,12 +65,12 @@ class SegmentEntry {
         .setRemovedDocIdx(this.getRemovedDocsIdx());
   }
 
-  ArrayList<Integer> getRemovedDocsIdx() {
-    return new ArrayList<Integer>(removedDocsIdx);
-  }
-
   public String getName() {
     return name;
+  }
+
+  ArrayList<Integer> getRemovedDocsIdx() {
+    return new ArrayList<Integer>(removedDocsIdx);
   }
 }
 
@@ -103,6 +104,7 @@ public class InvertedIndexManager {
    */
   private Analyzer analyzer;
 
+  private Compressor compressor = new DeltaVarLenCompressor();
   private InvertedIndex currInvertIndex;
   private String workPath;
 
@@ -110,6 +112,11 @@ public class InvertedIndexManager {
     this.analyzer = analyzer;
     this.currInvertIndex = new InvertedIndex(indexFolder);
     this.workPath = indexFolder;
+  }
+
+  private InvertedIndexManager(String indexFolder, Analyzer analyzer, Compressor compressor) {
+    new InvertedIndexManager(indexFolder, analyzer);
+    this.compressor = compressor;
   }
 
   /**
@@ -182,14 +189,30 @@ public class InvertedIndexManager {
       throw new UncheckedIOException(e);
     }
   }
+
   /**
    * Creates a positional index with the given folder, analyzer, and the compressor. Compressor must
    * be used to compress the inverted lists and the position lists.
    */
   public static InvertedIndexManager createOrOpenPositional(
       String indexFolder, Analyzer analyzer, Compressor compressor) {
-    throw new UnsupportedOperationException();
+    try {
+      Path indexFolderPath = Paths.get(indexFolder);
+      if (Files.exists(indexFolderPath) && Files.isDirectory(indexFolderPath)) {
+        if (Files.isDirectory(indexFolderPath)) {
+          return new InvertedIndexManager(indexFolder, analyzer, compressor);
+        } else {
+          throw new RuntimeException(indexFolderPath + " already exists and is not a directory");
+        }
+      } else {
+        Files.createDirectories(indexFolderPath);
+        return new InvertedIndexManager(indexFolder, analyzer, compressor);
+      }
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
   }
+
   /**
    * Performs a phrase search on a positional index. Phrase search means the document must contain
    * the consecutive sequence of keywords in exact order.
@@ -205,6 +228,7 @@ public class InvertedIndexManager {
 
     throw new UnsupportedOperationException();
   }
+
   /**
    * Reads a disk segment of a positional index into memory based on segmentNum. This function is
    * mainly used for checking correctness in test cases.
@@ -216,7 +240,27 @@ public class InvertedIndexManager {
    *     don't exist.
    */
   public PositionalIndexSegmentForTest getIndexSegmentPositional(int segmentNum) {
-    throw new UnsupportedOperationException();
+    try {
+      if (this.segmentMetaData.isEmpty()) {
+        loadMetaData(this, Paths.get(this.workPath + "/metadata.txt"));
+      }
+    } catch (UncheckedIOException e) {
+      System.out.println(e);
+      return null;
+    }
+
+    if (!this.segmentMetaData.containsKey(segmentNum)) return null;
+    SegmentEntry entry = this.segmentMetaData.get(segmentNum);
+    try {
+      InvertedIndex inv = entry.openInvertedList(this.workPath);
+      PositionalIndexSegmentForTest res =
+          new PositionalIndexSegmentForTest(inv.getAllInvertList(), inv.getAllDocuments(),inv.getAllpositionList());
+      inv.close();
+      return res;
+    } catch (RuntimeException e) {
+      return new PositionalIndexSegmentForTest(
+          new HashMap<>(), new HashMap<>(), HashBasedTable.create());
+    }
   }
 
   /**

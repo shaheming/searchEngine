@@ -1,5 +1,8 @@
 package edu.uci.ics.cs221.index.inverted;
 
+import com.google.common.base.Preconditions;
+import com.google.common.collect.HashBasedTable;
+import com.google.common.collect.Table;
 import com.sun.xml.internal.messaging.saaj.util.ByteOutputStream;
 import edu.uci.ics.cs221.storage.Document;
 import edu.uci.ics.cs221.storage.DocumentStore;
@@ -35,8 +38,7 @@ class LRUPageCache {
       SimpleEntry<Integer, ByteBuffer> entry = list.removeFirst();
       this.map.remove(entry.getKey());
     }
-    SimpleEntry<Integer, ByteBuffer> entry =
-        new SimpleEntry<Integer, ByteBuffer>(page_num, page_buffer);
+    SimpleEntry<Integer, ByteBuffer> entry = new SimpleEntry<>(page_num, page_buffer);
     list.add(entry);
     map.put(page_num, entry);
   }
@@ -45,6 +47,7 @@ class LRUPageCache {
     if (map.containsKey(page_num)) {
       SimpleEntry<Integer, ByteBuffer> entry = map.get(page_num);
       list.remove(entry);
+      entry.getValue().clear();
       list.add(entry);
       return entry.getValue();
     } else return null;
@@ -191,16 +194,16 @@ class InvertedIndexHeaderEntry {
     this.size = size;
   }
 
+  void print() {
+    System.out.println(this.key + " " + this.size + " " + this.docIdListPtr);
+  }
+
   Integer getDocIdListPtr() {
     return docIdListPtr;
   }
 
   void setDocIdListPtr(Integer docIdListPtr) {
     this.docIdListPtr = docIdListPtr;
-  }
-
-  void print() {
-    System.out.println(this.key + " " + this.size + " " + this.docIdListPtr);
   }
 
   /** @param buffer convert the entry to byte and write it to write buffer */
@@ -219,7 +222,7 @@ class InvertedIndexHeaderEntry {
 }
 
 /** This class is the data structure of the invertedIndex in the memory */
-public class InvertedIndex {
+public class InvertedIndex implements AutoCloseable {
   protected Map<Integer, Document> documents = new HashMap<>();
   private Integer docNum = 0;
   private String workPath;
@@ -241,6 +244,7 @@ public class InvertedIndex {
   private DeltaVarLenCompressor compressor = new DeltaVarLenCompressor();
   //  private NaiveCompressor compressor = new NaiveCompressor();
   private LRUPageCache postingListLRU = new LRUPageCache();
+  private LRUPageCache positionListLRU = new LRUPageCache();
   private ByteOutputStream positListBuffer = null;
 
   /** @param workPath the path of work dir */
@@ -400,7 +404,6 @@ public class InvertedIndex {
       }
     }
     while (!dq1.isEmpty()) {
-
       entry1 = dq1.peek().getValue();
       copyDocIdToRemoveDelete(
           des,
@@ -585,6 +588,7 @@ public class InvertedIndex {
     return true;
   }
 
+  @Override
   public void close() {
     if (this.invertedListFileChannel != null) {
       this.invertedListFileChannel.close();
@@ -667,6 +671,7 @@ public class InvertedIndex {
 
     this.headerNum = this.wordsDicEntries.size();
   }
+
   // this method provide a LRU buffered read for the posting list page read.
   private ByteBuffer readPostingListPage(int pageStart) {
     if (this.invertedListFileChannel == null) {
@@ -679,30 +684,63 @@ public class InvertedIndex {
     }
     return buffer;
   }
-//  private Integer getListLen(ByteBuffer buffer,PostiListPageIterator pit){
-//
-//  }
+
   private ArrayList<Integer> readDocIds(InvertedIndexHeaderEntry entry) {
-    int pageStart = entry.getDocIdListPtr() / PageFileChannel.PAGE_SIZE;
-    int offset =
-        pageStart > 0
-            ? entry.getDocIdListPtr() - pageStart * PageFileChannel.PAGE_SIZE
-            : entry.getDocIdListPtr();
+    int pageStart = getPtrPageNum(entry.getDocIdListPtr());
+    int offset = getPtrOffset(pageStart, entry.getDocIdListPtr());
 
     ArrayList<Integer> docIds = new ArrayList<>();
-    ByteBuffer intBuffer = ByteBuffer.allocate(InvertedIndexHeaderEntry.docIdByteSize);
-    ByteOutputStream bytesteam = new ByteOutputStream();
     PostiListPageIterator pit = new PostiListPageIterator(pageStart);
     ByteBuffer buffer = pit.next();
     buffer.position(offset);
+
+    SimpleEntry<Integer, ByteBuffer> out = getListLen(buffer, pit);
+    buffer = out.getValue();
+    int counter = out.getKey();
+
+    ByteOutputStream bytesteam = readDocIdsFromPage(buffer, pit, counter);
+    if (bytesteam.getCount() > 0) {
+      List<Integer> idx = compressor.decode(bytesteam.getBytes(), 0, bytesteam.getCount());
+      docIds.addAll(idx);
+    }
+    //    System.out.println(entry.getKey() + Arrays.toString(docIds.toArray()));
+
+    return docIds;
+  }
+
+  static Integer getPtrPageNum(Integer ptr) {
+    return ptr / PageFileChannel.PAGE_SIZE;
+  }
+
+  static Integer getPtrOffset(Integer pageNum, Integer ptr) {
+    return pageNum > 0 ? ptr - pageNum * PageFileChannel.PAGE_SIZE : ptr;
+  }
+
+  private ByteOutputStream readDocIdsFromPage(
+      ByteBuffer buffer, Iterator<ByteBuffer> pit, Integer counter) {
+    ByteOutputStream bytesteam = new ByteOutputStream();
+    while (counter > 0) {
+      int len =
+          buffer.capacity() - buffer.position() > counter
+              ? counter
+              : buffer.capacity() - buffer.position();
+      bytesteam.write(buffer.array(), buffer.position(), len);
+      counter -= len;
+      if (counter <= 0) break;
+      buffer = pit.next();
+    }
+    return bytesteam;
+  }
+
+  private SimpleEntry<Integer, ByteBuffer> getListLen(ByteBuffer buffer, Iterator<ByteBuffer> pit) {
     int counter = 0;
+    ByteBuffer intBuffer = ByteBuffer.allocate(InvertedIndexHeaderEntry.docIdByteSize);
     while (true) {
       if (intBuffer.position() > 0) {
         while (intBuffer.hasRemaining()) {
           intBuffer.put(buffer.get());
         }
         intBuffer.flip();
-        //        docIds.add(intBuffer.getInt());
         counter = intBuffer.getInt();
         intBuffer.clear();
         break;
@@ -718,25 +756,7 @@ public class InvertedIndex {
       }
       buffer = pit.next();
     }
-    while (counter > 0) {
-      int len =
-          buffer.capacity() - buffer.position() > counter
-              ? counter
-              : buffer.capacity() - buffer.position();
-      bytesteam.write(buffer.array(), buffer.position(), len);
-      counter -= len;
-      if (counter <= 0) break;
-      buffer = pit.next();
-    }
-
-    if (bytesteam.getCount() > 0) {
-      List<Integer> idx =
-          compressor.decode(Arrays.copyOfRange(bytesteam.getBytes(), 0, bytesteam.getCount()));
-      docIds.addAll(idx);
-    }
-    //    System.out.println(entry.getKey() + Arrays.toString(docIds.toArray()));
-
-    return docIds;
+    return new SimpleEntry<Integer, ByteBuffer>(counter, buffer);
   }
 
   private LinkedList<Integer> getRemovedDocIdx() {
@@ -746,6 +766,18 @@ public class InvertedIndex {
   public InvertedIndex setRemovedDocIdx(ArrayList<Integer> removedList) {
     this.removedDocIdx = new TreeSet<>(removedList);
     return this;
+  }
+
+  private ByteBuffer readPositionListPage(int pageStart) {
+    if (this.positionListFileChannel == null) {
+      this.positionListFileChannel = PageFileChannel.createOrOpen(Paths.get(this.positionListPath));
+    }
+    ByteBuffer buffer = positionListLRU.get(pageStart);
+    if (buffer == null) {
+      buffer = this.invertedListFileChannel.readPage(pageStart);
+      positionListLRU.put(pageStart, buffer);
+    }
+    return buffer;
   }
 
   /**
@@ -1003,7 +1035,81 @@ public class InvertedIndex {
     return this.headerNum = this.invertList.size();
   }
 
-  private class PostiListPageIterator implements Iterator {
+  /** @return */
+  public Table<String, Integer, List<Integer>> getAllpositionList() {
+    Preconditions.checkArgument(this.invertList.size() != 0);
+    Preconditions.checkArgument(this.wordsDicEntries.size() != 0);
+    Table<String, Integer, List<Integer>> table = HashBasedTable.create();
+    for (Map.Entry<String, List<Integer>> entry : this.invertList.entrySet()) {
+      InvertedIndexHeaderEntry headerEntry = this.wordsDicEntries.get(entry.getKey());
+      List<Integer> positionPtrs = this.readPositionListPtrs(headerEntry);
+      List<Integer> docIds = entry.getValue();
+      for (int i = 0; i < docIds.size(); i++) {
+        List<Integer> positionList = this.readPositionList(positionPtrs.get(i));
+        table.put(entry.getKey(), docIds.get(i), positionList);
+      }
+    }
+    return table;
+  }
+
+  private ArrayList<Integer> readPositionList(Integer ptr) {
+    int startPageNum = getPtrPageNum(ptr);
+    int offset = getPtrOffset(startPageNum, ptr);
+    ArrayList<Integer> positonList = new ArrayList<>();
+    PositionListPageIterator<ByteBuffer> pit = new PositionListPageIterator<>(startPageNum);
+    ByteBuffer buffer = pit.next();
+    buffer.position(offset);
+
+    SimpleEntry<Integer, ByteBuffer> out = getListLen(buffer, pit);
+    buffer = out.getValue();
+    int counter = out.getKey();
+
+    ByteOutputStream bytesteam = readDocIdsFromPage(buffer, pit, counter);
+    if (bytesteam.getCount() > 0) {
+      List<Integer> ptrs = compressor.decode(bytesteam.getBytes(), 0, bytesteam.getCount());
+      positonList.addAll(ptrs);
+    }
+
+    return positonList;
+  }
+
+  private ArrayList<Integer> readPositionListPtrs(InvertedIndexHeaderEntry entry) {
+    int pageStart = getPtrPageNum(entry.getDocIdListPtr());
+    int offset = getPtrOffset(pageStart, entry.getDocIdListPtr());
+
+    ArrayList<Integer> positonPtrs = new ArrayList<>();
+    PostiListPageIterator pit = new PostiListPageIterator(pageStart);
+    ByteBuffer buffer = pit.next();
+    buffer.position(offset);
+
+    SimpleEntry<Integer, ByteBuffer> out = getListLen(buffer, pit);
+    buffer = out.getValue();
+    int counter = out.getKey();
+    // skip the invert list;
+    do {
+      if (buffer.remaining() > counter) {
+        buffer.position(buffer.position() + counter);
+        break;
+      } else {
+        counter -= buffer.remaining();
+        buffer = pit.next();
+      }
+    } while (pit.hasNext() || buffer.remaining() > 0);
+
+    out = getListLen(buffer, pit);
+    buffer = out.getValue();
+    counter = out.getKey();
+
+    ByteOutputStream bytesteam = readDocIdsFromPage(buffer, pit, counter);
+
+    if (bytesteam.getCount() > 0) {
+      List<Integer> ptrs = compressor.decode(bytesteam.getBytes(), 0, bytesteam.getCount());
+      positonPtrs.addAll(ptrs);
+    }
+    return positonPtrs;
+  }
+
+  private class PostiListPageIterator<k> implements Iterator {
 
     int index;
     int max;
@@ -1020,6 +1126,36 @@ public class InvertedIndex {
     public ByteBuffer next() {
       if (this.hasNext()) {
         return readPostingListPage(index++);
+      }
+      return null;
+    }
+
+    @Override
+    public boolean hasNext() {
+      if (this.index < this.max) {
+        return true;
+      }
+      return false;
+    }
+  }
+
+  private class PositionListPageIterator<k> implements Iterator {
+
+    int index;
+    int max;
+
+    PositionListPageIterator(Integer startPage) {
+      index = startPage;
+      if (positionListFileChannel == null) {
+        positionListFileChannel = PageFileChannel.createOrOpen(Paths.get(positionListPath));
+      }
+      this.max = positionListFileChannel.getNumPages();
+    }
+
+    @Override
+    public ByteBuffer next() {
+      if (this.hasNext()) {
+        return readPositionListPage(index++);
       }
       return null;
     }
