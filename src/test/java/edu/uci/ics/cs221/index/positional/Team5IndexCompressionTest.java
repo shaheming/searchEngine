@@ -187,13 +187,13 @@ public class Team5IndexCompressionTest {
   public void Test5() {
     Assert.assertEquals(0, PageFileChannel.readCounter);
     Assert.assertEquals(0, PageFileChannel.writeCounter);
-    String doc1="cat Dot cat Dog I can not tell the difference between cat and Dog";
-    String doc2="cat and dog have a lot of difference";
-    String doc3="Dog can be very different from cat";
+    String doc1="cat Dot cat Dog I can not tell the difference between cat and Dog ";
+    String doc2="cat and dog have a lot of difference ";
+    String doc3="Dog can be very different from cat ";
     for(int i=0;i<1000;i++){
-      doc1=doc1+"cat Dot cat Dog I can not tell the difference between cat and Dog";
-      doc2=doc2+"cat and dog have a lot of difference";
-      doc3=doc3+"Dog can be very different from cat";
+      doc1=doc1+"cat Dot cat Dog I can not tell the difference between cat and Dog ";
+      doc2=doc2+"cat and dog have a lot of difference ";
+      doc3=doc3+"Dog can be very different from cat ";
     }
 
     Document document1=new Document(doc1);
