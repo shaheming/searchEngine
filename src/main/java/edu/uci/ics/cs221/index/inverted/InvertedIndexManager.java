@@ -404,6 +404,7 @@ public class InvertedIndexManager {
         synchronizedMap.put(0, entry);
       }
     }
+
     ArrayList<String> oldFiles = new ArrayList<>();
     System.out.println("Join merge");
     synchronized (this.segmentMetaData) {
@@ -416,6 +417,7 @@ public class InvertedIndexManager {
         (name) -> {
           try {
             Files.deleteIfExists(Paths.get(this.workPath + "/" + name + ".list"));
+            Files.deleteIfExists(Paths.get(this.workPath + "/" + name + ".plist"));
             Files.deleteIfExists(Paths.get(this.workPath + "/" + name + ".db"));
           } catch (IOException e) {
             System.out.println(e.toString());
@@ -615,6 +617,7 @@ public class InvertedIndexManager {
     InvertedIndex inv1;
     InvertedIndex inv2;
     Integer desSegId;
+    InvertedIndex des;
 
     public ParallelMerge(
         String name,
@@ -636,10 +639,10 @@ public class InvertedIndexManager {
       try {
         System.out.println(
             "Start merge: " + this.put + ",thread name is: " + Thread.currentThread().getName());
-        InvertedIndex inv = inv1.merge(inv2);
+        this.des = inv1.merge(inv2);
         SegmentEntry entry =
             new SegmentEntry(
-                inv.getSegmentName(), inv.getHeaderLen(), inv.getHeaderNum(), inv.getDocNum());
+                des.getSegmentName(), des.getHeaderLen(), des.getHeaderNum(), des.getDocNum());
 
         synchronized (this.metaData) {
           this.metaData.put(this.desSegId, entry);
@@ -650,9 +653,11 @@ public class InvertedIndexManager {
       System.out.println(
           "Merge: "
               + this.put
+              + " To "
+              + this.des.getSegmentName()
               + ",thread name is: "
               + Thread.currentThread().getName()
-              + "finished");
+              + " finished");
     }
   }
 }

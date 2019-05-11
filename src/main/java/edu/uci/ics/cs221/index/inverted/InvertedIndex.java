@@ -59,12 +59,13 @@ class LRUPageCache {
   }
 }
 
-class WritePageBuffer {
+class PageWriteBuffer {
   private ByteBuffer buffer1 = ByteBuffer.allocate(PageFileChannel.PAGE_SIZE + 100);
   private ByteBuffer buffer2 = ByteBuffer.allocate(PageFileChannel.PAGE_SIZE + 100);
   private Integer limit = PageFileChannel.PAGE_SIZE;
   private ByteBuffer buffer = buffer1;
   private PageFileChannel fileChannel;
+  private Integer writeCount = 0;
 
   /**
    * this buffer use two buffer to align the data to one page size. When the page buffer is filled,
@@ -72,13 +73,14 @@ class WritePageBuffer {
    *
    * @param fileChannel pagechennel
    */
-  WritePageBuffer(PageFileChannel fileChannel) {
+  PageWriteBuffer(PageFileChannel fileChannel) {
     this.fileChannel = fileChannel;
   }
 
-  public WritePageBuffer putInt(int val) {
+  public PageWriteBuffer putInt(int val) {
     buffer.putInt(val);
     checkFull();
+    writeCount += 4;
     return this;
   }
 
@@ -104,16 +106,24 @@ class WritePageBuffer {
     buffer.clear();
   }
 
-  public WritePageBuffer put(ByteBuffer src) {
+  public PageWriteBuffer put(ByteBuffer src) {
+    int inBytes = src.remaining();
     while (src.hasRemaining()) {
       checkFull();
       buffer.put(src.get());
     }
+    writeCount += inBytes;
     return this;
   }
 
-  public WritePageBuffer put(byte b) {
+  // This is used to record how many bytes are written to the disk
+  public Integer getWriteCount() {
+    return writeCount;
+  }
+
+  public PageWriteBuffer put(byte b) {
     buffer.put(b);
+    writeCount += 1;
     checkFull();
     return this;
   }
@@ -165,6 +175,13 @@ class InvertedIndexHeaderEntry {
     //    this.print();
   }
 
+  InvertedIndexHeaderEntry(Integer keyPtr, Integer size, Integer docIdListPtr) {
+    this.keyPtr = keyPtr;
+    this.size = size;
+    this.docIdListPtr = docIdListPtr;
+    //    this.print();
+  }
+
   public Integer getKeyPtr() {
     return keyPtr;
   }
@@ -207,7 +224,7 @@ class InvertedIndexHeaderEntry {
   }
 
   /** @param buffer convert the entry to byte and write it to write buffer */
-  void convertToByte(WritePageBuffer buffer) {
+  void convertToByte(PageWriteBuffer buffer) {
 
     //    for (int i = 0; i < this.key.length(); i++) {
     //      buffer.put((byte) this.key.charAt(i));
@@ -243,6 +260,7 @@ class PageReadBuffer implements AutoCloseable {
       try {
         this.pageChannel.close();
       } catch (Exception e) {
+        e.printStackTrace();
       }
     }
     this.pageChannel = PageFileChannel.createOrOpen(Paths.get(filePath));
@@ -310,6 +328,7 @@ class PageReadBuffer implements AutoCloseable {
               ? n
               : pageBuffer.capacity() - pageBuffer.position();
       byteSteam.write(pageBuffer.array(), pageBuffer.position(), len);
+      pageBuffer.position(pageBuffer.position() + len);
       n -= len;
       if (n <= 0) break;
       pageBuffer = pit.next();
@@ -324,6 +343,24 @@ class PageReadBuffer implements AutoCloseable {
       LRUCache.put(pageNum, buffer);
     }
     return buffer;
+  }
+
+  public Integer getInt() {
+    if (this.pageBuffer.remaining() > 4) {
+      return this.pageBuffer.getInt();
+    } else {
+      ByteBuffer intBuffer = ByteBuffer.allocate(4);
+      Preconditions.checkState(this.pit.hasNext(), "Page out of range");
+      while (this.pageBuffer.hasRemaining()) {
+        intBuffer.put(this.pageBuffer.get());
+      }
+      this.pageBuffer = this.pit.next();
+      while (intBuffer.hasRemaining()) {
+        intBuffer.put(this.pageBuffer.get());
+      }
+      intBuffer.flip();
+      return intBuffer.getInt();
+    }
   }
 
   @Override
@@ -378,11 +415,10 @@ public class InvertedIndex implements AutoCloseable {
   private Set<Integer> removedDocIdx = new TreeSet<>();
   private Compressor compressor = new DeltaVarLenCompressor();
   //  private NaiveCompressor compressor = new NaiveCompressor();
-  private LRUPageCache postingListLRU = new LRUPageCache();
-  private LRUPageCache positionListLRU = new LRUPageCache();
   private ByteOutputStream positListBuffer = null;
-  private PageReadBuffer postingListPageBuffer = null;
-  private PageReadBuffer postitionListPageBuffer = null;
+  private PageReadBuffer postingListReadBuffer = null;
+  private PageReadBuffer postitionListReadBuffer = null;
+  private Table<String, Integer, List<Integer>> position = TreeBasedTable.create();
   /** @param workPath the path of work dir */
   public InvertedIndex(String workPath) {
     InitFilePath(workPath, getTimeStamp());
@@ -436,8 +472,8 @@ public class InvertedIndex implements AutoCloseable {
     this.headerNum = headerNum;
     Path indexPath = Paths.get(this.invertListPath);
     Path indexDocPath = Paths.get(this.docStorePath);
-    this.postingListPageBuffer = new PageReadBuffer(this.invertListPath);
-    this.postitionListPageBuffer = new PageReadBuffer(this.positionListPath);
+    this.postingListReadBuffer = new PageReadBuffer(this.invertListPath);
+    this.postitionListReadBuffer = new PageReadBuffer(this.positionListPath);
     if (this.invertedListFileChannel == null) {
       this.invertedListFileChannel = PageFileChannel.createOrOpen(Paths.get(this.invertListPath));
     }
@@ -475,12 +511,38 @@ public class InvertedIndex implements AutoCloseable {
     return inv;
   }
 
-  private static Integer getPtrPageNum(Integer ptr) {
-    return ptr / PageFileChannel.PAGE_SIZE;
-  }
+  private static Integer copyDocIdToRemoveDelete(
+      InvertedIndex des,
+      String key,
+      Deque<Integer> removedDq,
+      ArrayList<Integer> ids,
+      Integer offset) {
+    int counter = 0;
 
-  private static Integer getPtrOffset(Integer pageNum, Integer ptr) {
-    return pageNum > 0 ? ptr - pageNum * PageFileChannel.PAGE_SIZE : ptr;
+    if (des.positListBuffer == null) {
+      //      des.positListBuffer = new ByteOutputStream();
+      //      int currentPtr = des.positListBuffer.getCount();
+    }
+
+    ArrayList<Integer> newDocIds = new ArrayList<>();
+    ArrayList<Integer> newPtrs = new ArrayList<>();
+
+    for (Integer id : ids) {
+      if ((removedDq.size() > 0) && removedDq.peek() <= id) {
+        removedDq.poll();
+        counter++;
+        continue;
+      }
+
+      newDocIds.add(id - counter + offset);
+    }
+    if (des.invertList.containsKey(key)) {
+      des.invertList.get(key).addAll(newDocIds);
+      return des.invertList.get(key).size();
+    } else {
+      if (!newDocIds.isEmpty()) des.invertList.put(key, newDocIds);
+      return 0;
+    }
   }
 
   private void calHeaderLen() {
@@ -500,6 +562,7 @@ public class InvertedIndex implements AutoCloseable {
    */
   public InvertedIndex merge(InvertedIndex inv) {
     InvertedIndex des = new InvertedIndex(this.workPath, this.compressor);
+    PageWriteBuffer positionListWriteBuffer = des.openPositionListWriteBuffer();
     this.openReadOnlyDocDb();
     inv.openReadOnlyDocDb();
     // db1
@@ -509,6 +572,10 @@ public class InvertedIndex implements AutoCloseable {
     // invertList
     this.readHeader();
     inv.readHeader();
+    this.postingListReadBuffer.openChannel();
+    this.postitionListReadBuffer.openChannel();
+    inv.postingListReadBuffer.openChannel();
+    inv.postitionListReadBuffer.openChannel();
 
     Deque<Map.Entry<String, InvertedIndexHeaderEntry>> dq1 =
         new LinkedList<>(this.wordsDicEntries.entrySet());
@@ -522,66 +589,153 @@ public class InvertedIndex implements AutoCloseable {
       entry2 = dq2.peek().getValue();
       int compare = entry1.getKey().compareTo(entry2.getKey());
       if (compare < 0) {
-        copyDocIdToRemoveDelete(
-            des,
-            entry1.getKey(),
-            new LinkedList<>(this.getRemovedDocIdx()),
-            this.readDocIds(entry1),
-            0);
+        copyDocIdToRemoveDelete(des, this, entry1, positionListWriteBuffer, 0);
         dq1.poll();
 
       } else if (compare > 0) {
-        copyDocIdToRemoveDelete(
-            des,
-            entry2.getKey(),
-            new LinkedList<>(inv.getRemovedDocIdx()),
-            inv.readDocIds(entry2),
-            ivL1Size);
+        copyDocIdToRemoveDelete(des, inv, entry2, positionListWriteBuffer, ivL1Size);
         dq2.poll();
       } else {
-        int offset =
-            copyDocIdToRemoveDelete(
-                des,
-                entry1.getKey(),
-                new LinkedList<>(this.getRemovedDocIdx()),
-                this.readDocIds(entry1),
-                0);
-        copyDocIdToRemoveDelete(
-            des,
-            entry2.getKey(),
-            new LinkedList<>(inv.getRemovedDocIdx()),
-            inv.readDocIds(entry2),
-            ivL1Size);
+        int offset = copyDocIdToRemoveDelete(des, this, entry1, positionListWriteBuffer, 0);
+        copyDocIdToRemoveDelete(des, inv, entry2, positionListWriteBuffer, ivL1Size);
         dq1.poll();
         dq2.poll();
       }
     }
     while (!dq1.isEmpty()) {
       entry1 = dq1.peek().getValue();
-      copyDocIdToRemoveDelete(
-          des,
-          entry1.getKey(),
-          new LinkedList<>(this.getRemovedDocIdx()),
-          this.readDocIds(entry1),
-          0);
+      copyDocIdToRemoveDelete(des, this, entry1, positionListWriteBuffer, 0);
       dq1.poll();
     }
     while (!dq2.isEmpty()) {
       entry2 = dq2.peek().getValue();
-      copyDocIdToRemoveDelete(
-          des,
-          entry2.getKey(),
-          new LinkedList<>(inv.getRemovedDocIdx()),
-          inv.readDocIds(entry2),
-          ivL1Size);
+      copyDocIdToRemoveDelete(des, inv, entry2, positionListWriteBuffer, ivL1Size);
       dq2.poll();
     }
 
+    positionListWriteBuffer.flush();
     des.flush();
     this.close();
     inv.close();
     des.close();
     return des;
+  }
+
+  /**
+   * This method use to filter the deleted documentIds. As for the position list, this method will
+   * read each position list related each key and write it to disk immediately through
+   * positionListWriteBuffer, and update the pointer.
+   *
+   * @param des
+   * @param src
+   * @param headerEntry
+   * @param positionListWriteBuffer
+   * @param offset
+   * @return
+   */
+  private static Integer copyDocIdToRemoveDelete(
+      InvertedIndex des,
+      InvertedIndex src,
+      InvertedIndexHeaderEntry headerEntry,
+      PageWriteBuffer positionListWriteBuffer,
+      Integer offset) {
+    int counter = 0;
+    Deque<Integer> removedDq = new LinkedList<>(src.getRemovedDocIdx());
+    ArrayList<Integer> ids = src.readDocIds(headerEntry);
+    ArrayList<Integer> ptrs = src.readPositionListPtrs(headerEntry);
+    ArrayList<Integer> newDocIds = new ArrayList<>();
+    ArrayList<Integer> newPtrs = new ArrayList<>();
+    String key = headerEntry.getKey();
+
+    // des.positListBuffer = new
+    int newPositionListPtr = positionListWriteBuffer.getWriteCount();
+    Iterator<Integer> it = ptrs.iterator();
+    for (Integer id : ids) {
+      int ptr = it.next();
+      if ((removedDq.size() > 0) && removedDq.peek() <= id) {
+        removedDq.poll();
+        counter++;
+        continue;
+      }
+      // write the position list to new list;
+      ByteOutputStream rawBytes = src.readRawPositionList(ptr);
+      positionListWriteBuffer.putInt(rawBytes.getCount());
+      positionListWriteBuffer.put(ByteBuffer.wrap(rawBytes.getBytes(), 0, rawBytes.getCount()));
+      newPtrs.add(newPositionListPtr);
+
+      newPositionListPtr += rawBytes.getCount() + 4;
+
+      newDocIds.add(id - counter + offset);
+    }
+
+    if (des.positionList.containsKey(key)) {
+      des.positionList.get(key).addAll(newPtrs);
+    } else {
+      des.positionList.put(key, newPtrs);
+    }
+
+    if (des.invertList.containsKey(key)) {
+      des.invertList.get(key).addAll(newDocIds);
+      return des.invertList.get(key).size();
+    } else {
+      if (!newDocIds.isEmpty()) des.invertList.put(key, newDocIds);
+      return 0;
+    }
+  }
+
+  private ArrayList<Integer> readDocIds(InvertedIndexHeaderEntry entry) {
+    if (!this.postingListReadBuffer.isOpen()) {
+      this.postingListReadBuffer.openChannel();
+    }
+    this.postingListReadBuffer.setPoisition(entry.getDocIdListPtr());
+    int counter = this.postingListReadBuffer.readListLen();
+    ByteOutputStream bytesteam = this.postingListReadBuffer.readNBytes(counter);
+    ArrayList<Integer> docIds = new ArrayList<>();
+    List<Integer> idx = compressor.decode(bytesteam.getBytes(), 0, bytesteam.getCount());
+    docIds.addAll(idx);
+
+    //    System.out.println(entry.getKey() + Arrays.toString(docIds.toArray()));
+
+    return docIds;
+  }
+
+  private ArrayList<Integer> readPositionListPtrs(InvertedIndexHeaderEntry entry) {
+    if (!this.postingListReadBuffer.isOpen()) {
+      this.postingListReadBuffer.openChannel();
+    }
+    this.postingListReadBuffer.setPoisition(entry.getDocIdListPtr());
+    int counter = this.postingListReadBuffer.readListLen();
+    this.postingListReadBuffer.movePtrNBytes(counter);
+    // skip the invert list;
+
+    counter = this.postingListReadBuffer.readListLen();
+
+    ByteOutputStream bytesteam = this.postingListReadBuffer.readNBytes(counter);
+    List<Integer> ptrs = compressor.decode(bytesteam.getBytes(), 0, bytesteam.getCount());
+    return new ArrayList<>(ptrs);
+  }
+
+  private ByteOutputStream readRawPositionList(Integer ptr) {
+    if (!this.postitionListReadBuffer.isOpen()) {
+      this.postitionListReadBuffer.openChannel();
+    }
+    this.postitionListReadBuffer.setPoisition(ptr);
+    int counter = this.postitionListReadBuffer.readListLen();
+    return this.postitionListReadBuffer.readNBytes(counter);
+  }
+
+  private LinkedList<Integer> getRemovedDocIdx() {
+    return new LinkedList<>(removedDocIdx);
+  }
+
+  public InvertedIndex setRemovedDocIdx(ArrayList<Integer> removedList) {
+    this.removedDocIdx = new TreeSet<>(removedList);
+    return this;
+  }
+
+  public PageWriteBuffer openPositionListWriteBuffer() {
+    this.positionListFileChannel = PageFileChannel.createOrOpen(Paths.get(this.positionListPath));
+    return new PageWriteBuffer(this.positionListFileChannel);
   }
 
   private static Integer copyDocToRemoveDelete(
@@ -619,40 +773,6 @@ public class InvertedIndex implements AutoCloseable {
     this.docNum++;
   }
 
-  private static Integer copyDocIdToRemoveDelete(
-      InvertedIndex des,
-      String key,
-      Deque<Integer> removedDq,
-      ArrayList<Integer> ids,
-      Integer offset) {
-    int counter = 0;
-
-    if (des.positListBuffer == null) {
-      des.positListBuffer = new ByteOutputStream();
-    }
-    int currentPtr = des.positListBuffer.getCount();
-
-    ArrayList<Integer> newDocIds = new ArrayList<>();
-    ArrayList<Integer> newPtrs = new ArrayList<>();
-
-    for (Integer id : ids) {
-      if ((removedDq.size() > 0) && removedDq.peek() <= id) {
-        removedDq.poll();
-        counter++;
-        continue;
-      }
-
-      newDocIds.add(id - counter + offset);
-    }
-    if (des.invertList.containsKey(key)) {
-      des.invertList.get(key).addAll(newDocIds);
-      return des.invertList.get(key).size();
-    } else {
-      if (!newDocIds.isEmpty()) des.invertList.put(key, newDocIds);
-      return 0;
-    }
-  }
-
   /**
    * todo flush invertList to disk(create the invertList file) flush docStore to disk
    *
@@ -664,9 +784,9 @@ public class InvertedIndex implements AutoCloseable {
     if (this.invertedListFileChannel == null) {
       this.invertedListFileChannel = PageFileChannel.createOrOpen(Paths.get(this.invertListPath));
     }
-    WritePageBuffer writeBuffer = new WritePageBuffer(this.invertedListFileChannel);
+    PageWriteBuffer writeBuffer = new PageWriteBuffer(this.invertedListFileChannel);
 
-    ExecutorService exec = Executors.newFixedThreadPool(2);
+    ExecutorService exec = Executors.newFixedThreadPool(1);
 
     if (this.docStore == null) {
       Runnable storeDocument =
@@ -677,78 +797,94 @@ public class InvertedIndex implements AutoCloseable {
           };
       exec.execute(storeDocument);
     }
-
-    Runnable storeInvertedList =
-        () -> {
-          // 1.cal head size
-          // 2.write head
-          // 3.write list
-          StringBuilder builder = new StringBuilder();
-
-          for (String s : this.invertList.keySet()) {
-            builder.append(s);
-          }
-          // write words dic to file
-          String wordsStr = builder.toString();
-          ByteBuffer buffer = ByteBuffer.allocate(wordsStr.length());
-          byte[] wordsByteStream = wordsStr.getBytes();
-          for (int i = 0; i < wordsByteStream.length; i++) {
-            writeBuffer.put(wordsByteStream[i]);
-          }
-
-          headerLen =
-              wordsByteStream.length
-                  + invertList.size() * InvertedIndexHeaderEntry.InvertedIndexHeaderEntrySize;
-
-          Integer curListPtr = headerLen;
-          Integer curWordPtr = 0;
-
-          InvertedIndexHeaderEntry headerEntry = new InvertedIndexHeaderEntry();
-          ByteArrayOutputStream listbuffer = new ByteArrayOutputStream();
-          ByteBuffer intBuff = ByteBuffer.allocate(4);
-          for (Map.Entry<String, List<Integer>> entry : this.invertList.entrySet()) {
-            headerEntry.setKey(entry.getKey());
-            headerEntry.setSize(entry.getValue().size());
-            headerEntry.setKeyPtr(curWordPtr);
-            headerEntry.setDocIdListPtr(curListPtr);
-            byte[] encoded = compressor.encode(entry.getValue());
-            intBuff.putInt(encoded.length);
-            listbuffer.write(intBuff.array(), 0, intBuff.capacity());
-            intBuff.clear();
-            listbuffer.write(encoded, 0, encoded.length);
-            curListPtr += encoded.length + 4;
-            // position pointer
-            if (!this.positionList.isEmpty()) {
-              int len = this.positionList.get(entry.getKey()).size();
-              encoded = compressor.encode(this.positionList.get(entry.getKey()));
-              intBuff.putInt(encoded.length);
-              listbuffer.write(intBuff.array(), 0, intBuff.capacity());
-              intBuff.clear();
-              listbuffer.write(encoded, 0, encoded.length);
-              curListPtr += encoded.length + 4;
-            }
-
-            curWordPtr += entry.getKey().getBytes().length;
-            headerEntry.convertToByte(writeBuffer);
-          }
-
-          writeBuffer.put(ByteBuffer.wrap(listbuffer.toByteArray()));
-          writeBuffer.flush();
-        };
-
-    exec.execute(storeInvertedList);
-    if (this.positionListFileChannel == null) {
-      this.positionListFileChannel = PageFileChannel.createOrOpen(Paths.get(this.positionListPath));
-    }
-    if (this.positListBuffer != null) {
-      WritePageBuffer positionListWriteBuffer = new WritePageBuffer(this.positionListFileChannel);
-
-      positionListWriteBuffer.put(
-          ByteBuffer.wrap(this.positListBuffer.getBytes(), 0, this.positListBuffer.getCount()));
-      positionListWriteBuffer.flush();
-    }
-
     exec.shutdown();
+
+    // 1.cal head size
+    // 2.write head
+    // 3.write list
+    StringBuilder builder = new StringBuilder();
+
+    for (String s : this.invertList.keySet()) {
+      builder.append(s);
+    }
+    // write words dic to file
+    String wordsStr = builder.toString();
+    ByteBuffer buffer = ByteBuffer.allocate(wordsStr.length());
+    byte[] wordsByteStream = wordsStr.getBytes();
+    for (int i = 0; i < wordsByteStream.length; i++) {
+      writeBuffer.put(wordsByteStream[i]);
+    }
+
+    headerLen =
+        wordsByteStream.length
+            + invertList.size() * InvertedIndexHeaderEntry.InvertedIndexHeaderEntrySize;
+    PageWriteBuffer positionListWriteBuffer = null;
+
+    if (this.position != null) {
+      if (this.positionListFileChannel == null) {
+        this.positionListFileChannel =
+            PageFileChannel.createOrOpen(Paths.get(this.positionListPath));
+      }
+      positionListWriteBuffer = new PageWriteBuffer(this.positionListFileChannel);
+    }
+
+    Integer curListPtr = headerLen;
+    Integer curWordPtr = 0;
+    int curPositionListPtr = 0;
+    InvertedIndexHeaderEntry headerEntry = new InvertedIndexHeaderEntry();
+    ByteArrayOutputStream listbuffer = new ByteArrayOutputStream();
+    ByteBuffer intBuff = ByteBuffer.allocate(4);
+    for (Map.Entry<String, List<Integer>> entry : this.invertList.entrySet()) {
+      headerEntry.setKey(entry.getKey());
+      headerEntry.setSize(entry.getValue().size());
+      headerEntry.setKeyPtr(curWordPtr);
+      headerEntry.setDocIdListPtr(curListPtr);
+      byte[] encoded = compressor.encode(entry.getValue());
+      intBuff.putInt(encoded.length);
+      listbuffer.write(intBuff.array(), 0, intBuff.capacity());
+      intBuff.clear();
+      listbuffer.write(encoded, 0, encoded.length);
+      curListPtr += encoded.length + 4;
+
+      // this is used to merge flush
+      if (!this.positionList.isEmpty()) {
+        encoded = compressor.encode(this.positionList.get(entry.getKey()));
+        intBuff.putInt(encoded.length);
+        listbuffer.write(intBuff.array(), 0, intBuff.capacity());
+        intBuff.clear();
+        listbuffer.write(encoded, 0, encoded.length);
+        curListPtr += encoded.length + 4;
+      }
+
+      // this is used to normal flush
+      if (!this.position.isEmpty()) {
+        ArrayList<Integer> ptrs = new ArrayList<>(entry.getValue().size());
+        List<Integer> docIds = entry.getValue();
+        for (Integer docId : docIds) {
+          ptrs.add(curPositionListPtr);
+          encoded = compressor.encode(this.position.get(entry.getKey(), docId));
+          positionListWriteBuffer.putInt(encoded.length);
+          positionListWriteBuffer.put(ByteBuffer.wrap(encoded, 0, encoded.length));
+          curPositionListPtr = curPositionListPtr + 4 + encoded.length;
+        }
+        intBuff.clear();
+        encoded = compressor.encode(ptrs);
+        intBuff.putInt(encoded.length);
+        intBuff.clear();
+        listbuffer.write(intBuff.array(), 0, intBuff.capacity());
+        intBuff.clear();
+        listbuffer.write(encoded, 0, encoded.length);
+        curListPtr += encoded.length + 4;
+      }
+
+      curWordPtr += entry.getKey().getBytes().length;
+      headerEntry.convertToByte(writeBuffer);
+    }
+
+    writeBuffer.put(ByteBuffer.wrap(listbuffer.toByteArray()));
+    writeBuffer.flush();
+    positionListWriteBuffer.flush();
+
     try {
       while (!exec.awaitTermination(1L, TimeUnit.HOURS)) {
         System.out.println("Not yet. Still waiting for termination");
@@ -778,165 +914,56 @@ public class InvertedIndex implements AutoCloseable {
   /** deserialize the header */
   public void readHeader() {
 
-    int pageNum = (this.headerLen + PageFileChannel.PAGE_SIZE - 1) / PageFileChannel.PAGE_SIZE;
-    ByteBuffer headerBuffer =
-        ByteBuffer.allocate(InvertedIndexHeaderEntry.InvertedIndexHeaderEntrySize);
-
     Integer wordsLen;
     wordsLen =
         this.headerLen - this.headerNum * InvertedIndexHeaderEntry.InvertedIndexHeaderEntrySize;
 
-    byte[] wordsBuffer = new byte[wordsLen];
-    InvertedIndexHeaderEntry lastEntry = null;
-    Integer counter = 0;
-    for (int i = 0; i < pageNum; i++) {
-      ByteBuffer buffer = this.readPostingListPage(i);
-      // read header words
-      if (counter < wordsLen) {
-        while (buffer.hasRemaining()) {
-          wordsBuffer[counter] = buffer.get();
-          counter++;
-          if (counter.equals(wordsLen)) break;
-        }
-        if (counter < wordsLen) continue;
-      }
+    InvertedIndexHeaderEntry lastEntry;
 
-      // read remained page
-      if (headerBuffer.position() > 0) {
-        while (headerBuffer.remaining() > 0) {
-          headerBuffer.put(buffer.get());
-        }
-        headerBuffer.flip();
-        InvertedIndexHeaderEntry entry = new InvertedIndexHeaderEntry(headerBuffer);
-        if (lastEntry != null) {
-          lastEntry.getKeyFromHeader(wordsBuffer, entry.getKeyPtr());
-          wordsDicEntries.put(lastEntry.getKey(), lastEntry);
-        }
-
-        lastEntry = entry;
-        headerBuffer.clear();
-        if (wordsDicEntries.size() == this.headerNum - 1) {
-          lastEntry.getKeyFromHeader(wordsBuffer, wordsLen);
-          wordsDicEntries.put(lastEntry.getKey(), lastEntry);
-          return;
-        }
-      }
-
-      while (buffer.remaining() >= InvertedIndexHeaderEntry.InvertedIndexHeaderEntrySize) {
-        InvertedIndexHeaderEntry entry = new InvertedIndexHeaderEntry(buffer);
-        if (lastEntry != null) {
-          lastEntry.getKeyFromHeader(wordsBuffer, entry.getKeyPtr());
-          wordsDicEntries.put(lastEntry.getKey(), lastEntry);
-        }
-        lastEntry = entry;
-        if (wordsDicEntries.size() == this.headerNum - 1) {
-          lastEntry.getKeyFromHeader(wordsBuffer, wordsLen);
-          wordsDicEntries.put(lastEntry.getKey(), lastEntry);
-          return;
-        }
-      }
-      // System.out.println("headerCounter: " + wordsDicEntries.size());
-      if (buffer.remaining() > 0) {
-        headerBuffer.put(buffer);
-      }
+    if (!this.postingListReadBuffer.isOpen()) {
+      this.postingListReadBuffer.openChannel();
     }
+    this.postingListReadBuffer.setPoisition(0);
+    byte[] wordsBuffer = this.postingListReadBuffer.readNBytes(wordsLen).getBytes();
+    lastEntry =
+        new InvertedIndexHeaderEntry(
+            this.postingListReadBuffer.getInt(),
+            this.postingListReadBuffer.getInt(),
+            this.postingListReadBuffer.getInt());
+
+    for (int i = 1; i < this.headerNum; i++) {
+      InvertedIndexHeaderEntry entry =
+          new InvertedIndexHeaderEntry(
+              this.postingListReadBuffer.getInt(),
+              this.postingListReadBuffer.getInt(),
+              this.postingListReadBuffer.getInt());
+      lastEntry.getKeyFromHeader(wordsBuffer, entry.getKeyPtr());
+      wordsDicEntries.put(lastEntry.getKey(), lastEntry);
+      lastEntry = entry;
+    }
+    lastEntry.getKeyFromHeader(wordsBuffer, wordsLen);
+    wordsDicEntries.put(lastEntry.getKey(), lastEntry);
 
     this.headerNum = this.wordsDicEntries.size();
   }
 
-  // this method provide a LRU buffered read for the posting list page read.
-  private ByteBuffer readPostingListPage(int pageStart) {
-    if (this.invertedListFileChannel == null) {
-      this.invertedListFileChannel = PageFileChannel.createOrOpen(Paths.get(this.invertListPath));
-    }
-    ByteBuffer buffer = postingListLRU.get(pageStart);
-    if (buffer == null) {
-      buffer = this.invertedListFileChannel.readPage(pageStart);
-      postingListLRU.put(pageStart, buffer);
-    }
-    return buffer;
-  }
-
-  private ArrayList<Integer> readDocIds(InvertedIndexHeaderEntry entry) {
-    //    int pageStart = getPtrPageNum(entry.getDocIdListPtr());
-    //    int offset = getPtrOffset(pageStart, entry.getDocIdListPtr());
-    //
-    //    ArrayList<Integer> docIds = new ArrayList<>();
-    //    PostiListPageIterator pit = new PostiListPageIterator(pageStart);
-    //    ByteBuffer buffer = pit.next();
-    //    buffer.position(offset);
-    //
-    //    SimpleEntry<Integer, ByteBuffer> out = getListLen(buffer, pit);
-    //    buffer = out.getValue();
-    if (!this.postingListPageBuffer.isOpen()) {
-      this.postingListPageBuffer.openChannel();
-    }
-    this.postingListPageBuffer.setPoisition(entry.getDocIdListPtr());
-    int counter = this.postingListPageBuffer.readListLen();
-    ByteOutputStream bytesteam = this.postingListPageBuffer.readNBytes(counter);
-    ArrayList<Integer> docIds = new ArrayList<>();
-    List<Integer> idx = compressor.decode(bytesteam.getBytes(), 0, bytesteam.getCount());
-    docIds.addAll(idx);
-
-    //    System.out.println(entry.getKey() + Arrays.toString(docIds.toArray()));
-
-    return docIds;
-  }
-
-  private LinkedList<Integer> getRemovedDocIdx() {
-    return new LinkedList<>(removedDocIdx);
-  }
-
-  public InvertedIndex setRemovedDocIdx(ArrayList<Integer> removedList) {
-    this.removedDocIdx = new TreeSet<>(removedList);
-    return this;
-  }
-
-  private ByteBuffer readPositionListPage(int pageStart) {
-    if (this.positionListFileChannel == null) {
-      this.positionListFileChannel = PageFileChannel.createOrOpen(Paths.get(this.positionListPath));
-    }
-    ByteBuffer buffer = positionListLRU.get(pageStart);
-    if (buffer == null) {
-      buffer = this.positionListFileChannel.readPage(pageStart);
-      positionListLRU.put(pageStart, buffer);
-    }
-    return buffer;
-  }
+  private void deleteFile() {}
 
   /**
    * add document and token to the invertedlist this will filter the invalid keywords, which exceed
-   * the MAX length of keyword
+   * the MAX length of keyword for a new inverted list, the position list will be stored in the
+   * memory in the member this.position
    *
    * @param document
    * @param positionMap
    */
   public void addDocument(Document document, Map<String, ArrayList<Integer>> positionMap) {
     this.documents.put(this.docNum, document);
-    if (this.positListBuffer == null) {
-      this.positListBuffer = new ByteOutputStream(PageFileChannel.PAGE_SIZE * 2);
-    }
-    ByteBuffer intBuffer = ByteBuffer.allocate(4);
-    for (String key : positionMap.keySet()) {
-      // if (key.length() == 0 || key.length() > InvertedIndexHeaderEntry.keyByteSize)
-      // continue;
-      // convert position list to bytearray
-      int positionListPtr = this.positListBuffer.getCount();
-      ArrayList<Integer> positionList = positionMap.get(key);
-      byte[] b = this.compressor.encode(positionList);
-      intBuffer.putInt(b.length);
-      this.positListBuffer.write(intBuffer.array());
-      this.positListBuffer.write(b);
-      intBuffer.clear();
 
-      // write position list pointer to inverted list
-      if (this.positionList.containsKey(key)) {
-        this.positionList.get(key).add(positionListPtr);
-      } else {
-        ArrayList<Integer> pList = new ArrayList<>();
-        pList.add(positionListPtr);
-        this.positionList.put(key, pList);
-      }
+    for (String key : positionMap.keySet()) {
+
+      ArrayList<Integer> positionList = positionMap.get(key);
+      this.position.put(key, this.docNum, positionList);
 
       if (this.invertList.containsKey(key)) {
         invertList.get(key).add(this.docNum);
@@ -1184,31 +1211,6 @@ public class InvertedIndex implements AutoCloseable {
       positionList.addAll(ptrs);
     }
     return positionList;
-  }
-
-  private ByteOutputStream readRawPositionList(Integer ptr) {
-    if (!this.postitionListPageBuffer.isOpen()) {
-      this.postitionListPageBuffer.openChannel();
-    }
-    this.postitionListPageBuffer.setPoisition(ptr);
-    int counter = this.postitionListPageBuffer.readListLen();
-    return this.postitionListPageBuffer.readNBytes(counter);
-  }
-
-  private ArrayList<Integer> readPositionListPtrs(InvertedIndexHeaderEntry entry) {
-    if (!this.postingListPageBuffer.isOpen()) {
-      this.postingListPageBuffer.openChannel();
-    }
-    this.postingListPageBuffer.setPoisition(entry.getDocIdListPtr());
-    int counter = this.postingListPageBuffer.readListLen();
-    this.postingListPageBuffer.movePtrNBytes(counter);
-    // skip the invert list;
-
-    counter = this.postingListPageBuffer.readListLen();
-
-    ByteOutputStream bytesteam = this.postingListPageBuffer.readNBytes(counter);
-    List<Integer> ptrs = compressor.decode(bytesteam.getBytes(), 0, bytesteam.getCount());
-    return new ArrayList<>(ptrs);
   }
 
   public InvertedIndex setCompressor(Compressor compressor) {
