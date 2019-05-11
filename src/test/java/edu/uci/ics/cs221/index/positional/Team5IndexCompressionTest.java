@@ -201,7 +201,7 @@ public class Team5IndexCompressionTest {
     Document document3=new Document(doc3);
 
 
-    for(int i=0;i<30;i++){
+    for(int i=0;i<1000;i++){
       positional_list_naive_compressor.addDocument(document1);
       positional_list_naive_compressor.addDocument(document2);
       positional_list_naive_compressor.addDocument(document3);
