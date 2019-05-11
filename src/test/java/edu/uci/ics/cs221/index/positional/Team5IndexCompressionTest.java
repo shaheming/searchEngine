@@ -131,33 +131,11 @@ public class Team5IndexCompressionTest {
           new Document(
               "cat" + i + " cat" + i + " cat" + i + " and dog" + i + " dog" + i + " dog" + i));
       positional_list_naive_compressor.addDocument(
-          new Document(
-              "pepsi"
-                  + i
-                  + " pepsi"
-                  + i
-                  + " pepsi"
-                  + i
-                  + " or coke"
-                  + i
-                  + " coke"
-                  + i
-                  + " coke"
-                  + i));
+          new Document("pepsi" + i + " pepsi" + i + " pepsi" + i + " or coke" + i + " coke" + i + " coke" + i));
       positional_list_naive_compressor.addDocument(
           new Document(
-              "microsoft"
-                  + i
-                  + " microsoft"
-                  + i
-                  + " microsoft"
-                  + i
-                  + " vs apple"
-                  + i
-                  + " apple"
-                  + i
-                  + " apple"
-                  + i));
+              "microsoft" + i + " microsoft" + i + " microsoft" + i + " vs apple" + i + " apple" + i
+                  + " apple" + i));
     }
     positional_list_naive_compressor.flush();
     for (int i = 0; i < positional_list_naive_compressor.getNumSegments(); i++) {
@@ -169,22 +147,12 @@ public class Team5IndexCompressionTest {
 
     for (int i = 0; i < 3000; i++) {
       positional_list_compressor.addDocument(
-          new Document("cat" + " cat" + " cat" + " and dog" + " dog" + " dog" + i));
+              new Document("cat" + i + " cat" + i + " cat" + i + " and dog" + i + " dog" + i + " dog" + i));
       positional_list_compressor.addDocument(
-          new Document("pepsi" + i + " pepsi" + " pepsi" + i + " or coke" + " coke" + " coke" + i));
-
+              new Document("pepsi" + i + " pepsi" + i + " pepsi" + i + " or coke" + i + " coke" + i + " coke" + i));
       positional_list_compressor.addDocument(
-          new Document(
-              "microsoft"
-                  + i
-                  + " microsoft"
-                  + i
-                  + " microsoft"
-                  + " vs apple"
-                  + i
-                  + " apple"
-                  + " apple"
-                  + i));
+              new Document("microsoft"+ i + " microsoft" + i + " microsoft" + i + " vs apple" + i + " apple" + i
+                              + " apple" + i));
     }
     positional_list_compressor.flush();
     for (int i = 0; i < positional_list_compressor.getNumSegments(); i++) {
