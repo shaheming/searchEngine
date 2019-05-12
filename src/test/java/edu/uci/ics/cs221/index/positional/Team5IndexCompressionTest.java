@@ -33,6 +33,7 @@ public class Team5IndexCompressionTest {
 
   @Before
   public void setup() {
+    //    InvertedIndexManager.DEFAULT_FLUSH_THRESHOLD = 10001;
     File directory1 = new File(path1);
     if (!directory1.exists()) {
       directory1.mkdirs();
@@ -188,9 +189,19 @@ public class Team5IndexCompressionTest {
     }
     int compress_wc = PageFileChannel.writeCounter;
     int compress_rc = PageFileChannel.readCounter;
+    Assert.assertTrue(
+            "naive write counter > 1.5 delta compress write count  \n Actual  naive write: "
+                    + naive_wc
+                    + " delta write count: "
+                    + compress_wc,
+            naive_wc > 1.4 * compress_wc);
+    Assert.assertTrue(
+        "naive write counter > 1.5 delta compress read count, \n Actual naive write: "
+            + naive_rc
+            + " delta write count: "
+            + compress_rc,
+        naive_rc > 1.5 * compress_rc);
 
-    Assert.assertTrue(naive_rc > 1.5 * compress_rc);
-    Assert.assertTrue(naive_wc > 1.5 * compress_wc);
     System.out.println("\033[0;32m");
     System.out.println("Naive compress write: " + naive_wc + " pages");
     System.out.println("Naive compress read: " + naive_rc + " pages");
@@ -257,9 +268,10 @@ public class Team5IndexCompressionTest {
 
   @After
   public void cleanup() throws Exception {
-    PageFileChannel.resetCounters();
-    Path rootPath = Paths.get("./index/Team5IndexCompressionTest");
-    Files.walk(rootPath).sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
-    Files.deleteIfExists(rootPath);
+      System.out.println("ii");
+      PageFileChannel.resetCounters();
+      Path rootPath = Paths.get("./index/Team5IndexCompressionTest");
+      Files.walk(rootPath).sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
+      Files.deleteIfExists(rootPath);
   }
 }

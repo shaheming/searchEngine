@@ -1,56 +1,65 @@
 package edu.uci.ics.cs221.index.inverted;
 
+import java.io.ByteArrayOutputStream;
 import java.util.ArrayList;
-import java.util.*;
-
-
+import java.util.List;
+import java.util.Stack;
 /**
- * Implement this compressor with Delta Encoding and Variable-Length Encoding.
- * See Project 3 description for details.
+ * Implement this compressor with Delta Encoding and Variable-Length Encoding. See Project 3
+ * description for details.
  */
 public class DeltaVarLenCompressor implements Compressor {
-    static public double log(double value, double base) {
-        return Math.log(value) / Math.log(base);
+
+  @Override
+  public byte[] encode(List<Integer> integers) {
+    if (integers.isEmpty()) {
+      return new byte[0];
     }
 
-    @Override
-    public byte[] encode(List<Integer> integers) {
-        int size=integers.size();
-        ArrayList list = new ArrayList();
-        for(int i=0;i<size;i++){
-            int new_value;
-            if(i==0) new_value=integers.get(0);
-            else new_value=integers.get(i)-integers.get(i-1);
-            int bytes_length = ((32-Integer.numberOfLeadingZeros(new_value))+ 6)/7;
-            bytes_length = bytes_length > 0 ? bytes_length : 1;
-            byte[] temp = new byte[bytes_length];
-            for(int j = bytes_length-1; j >=0; j--) {
-                temp[j] = (byte) ((new_value & 0b1111111) | 0b10000000); //0b->binary
-                new_value >>= 7;
-            }
-            temp[0] = (byte) (temp[0]&0b01111111); //reset the first byte
-
-            for(int j = 0; j < bytes_length; j++) {
-                list.add(temp[j]);
-            }
-        }
-        byte[] result = new byte[list.size()];
-        for(int i=0;i<list.size();i++){
-            result[i]=(byte)list.get(i);
-        }
-        return result;
-
+    ByteArrayOutputStream encoded = new ByteArrayOutputStream();
+    Stack<Byte> bytestack = new Stack<>();
+    int pre_num = 0;
+    for (Integer num : integers) {
+      int tmp = num;
+      num = num - pre_num;
+      pre_num = tmp;
+      if (num < 0) {
+        throw new RuntimeException("array is not sorted");
+      }
+      // 0x7F -> 127 01111111
+      bytestack.push((byte) (num & 0x7F));
+      num >>= 7;
+      // 0x80 -> 128 10000000
+      while (num > 0) {
+        bytestack.push((byte) (num & 0x7F | 0x80));
+        num >>= 7;
+      }
+      while (!bytestack.isEmpty()) {
+        //        System.out.println(Integer.toBinaryString((int) out.pop() & 0xFF));
+        encoded.write(bytestack.pop());
+      }
     }
+    return encoded.toByteArray();
+  }
 
-    @Override
-    public List<Integer> decode(byte[] bytes, int start, int length) {
-       byte[] buffer=new byte[length];
-       for(int i=0;i<length;i++){
-           buffer[i]=bytes[start+i];
-       }
-
-
-
-        throw new UnsupportedOperationException();
+  @Override
+  public List<Integer> decode(byte[] bytes, int start, int length) {
+    if (length == 0 || start >= bytes.length) return new ArrayList<>();
+    ArrayList<Integer> decoded = new ArrayList<>(length / (4));
+    int num = 0;
+    int pre_num = 0;
+    for (int i = start; i < length; i++) {
+      num = 0;
+      while ((bytes[i] & 0x80) == 0x80) {
+        num += bytes[i] & 0x7F;
+        num <<= 7;
+        i++;
+      }
+      num += bytes[i] & 0x7F;
+      num += pre_num;
+      decoded.add(num);
+      pre_num = num;
     }
+    return decoded;
+  }
 }

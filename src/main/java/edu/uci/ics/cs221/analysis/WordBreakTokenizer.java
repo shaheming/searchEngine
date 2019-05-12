@@ -43,9 +43,9 @@ public class WordBreakTokenizer implements Tokenizer {
           WordBreakTokenizer.class
               .getClassLoader()
               .getResource("cs221_frequency_dictionary_en.txt");
-      System.out.println(dictResource);
+//      System.out.println(dictResource);
       List<String> dictLines = Files.readAllLines(Paths.get(dictResource.toURI()));
-      System.out.println(dictLines.get(0));
+//      System.out.println(dictLines.get(0));
 
       wordDict = new HashMap<>();
 
@@ -76,7 +76,7 @@ public class WordBreakTokenizer implements Tokenizer {
     }
 
     String lowerText = text.toLowerCase();
-    System.out.println(lowerText);
+//    System.out.println(lowerText);
     boolean[][] wordMatrix = new boolean[lowerText.length()][lowerText.length()];
     for (int i = 0; i < lowerText.length(); i++) {
       Arrays.fill(wordMatrix[i], false);
