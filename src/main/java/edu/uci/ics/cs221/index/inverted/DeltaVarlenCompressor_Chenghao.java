@@ -1,5 +1,6 @@
 package edu.uci.ics.cs221.index.inverted;
 
+import java.io.ByteArrayOutputStream;
 import java.util.ArrayList;
 import java.util.*;
 
@@ -15,8 +16,11 @@ public class DeltaVarlenCompressor_Chenghao implements Compressor {
 
     @Override
     public byte[] encode(List<Integer> integers) {
+        if (integers.isEmpty()) {
+            return new byte[0];
+        }
         int size=integers.size();
-        ArrayList list = new ArrayList();
+        ByteArrayOutputStream result = new ByteArrayOutputStream();
         for(int i=0;i<size;i++){
             int new_value;
             if(i==0) new_value=integers.get(0);
@@ -24,21 +28,16 @@ public class DeltaVarlenCompressor_Chenghao implements Compressor {
             int bytes_length = ((32-Integer.numberOfLeadingZeros(new_value))+ 6)/7;
             bytes_length = bytes_length > 0 ? bytes_length : 1;
             byte[] temp = new byte[bytes_length];
-            for(int j = bytes_length-1; j >=0; j--) {
-                temp[j] = (byte) ((new_value & 0b1111111) | 0b10000000); //0b->binary
+            for(int j = bytes_length-1; j>=0; j--) {
+                temp[j] = (byte) ((new_value & 0b01111111) | 0b10000000); //0b->binary
                 new_value >>= 7;
             }
-            temp[0] = (byte) (temp[0]&0b01111111); //reset the first byte
-
+            temp[bytes_length-1] = (byte) (temp[bytes_length-1]&0b01111111); //reset the first byte
             for(int j = 0; j < bytes_length; j++) {
-                list.add(temp[j]);
+                result.write(temp[j]);
             }
         }
-        byte[] result = new byte[list.size()];
-        for(int i=0;i<list.size();i++){
-            result[i]=(byte)list.get(i);
-        }
-        return result;
+        return result.toByteArray();
 
     }
 
