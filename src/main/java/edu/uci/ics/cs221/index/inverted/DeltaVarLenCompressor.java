@@ -48,7 +48,7 @@ public class DeltaVarLenCompressor implements Compressor {
     ArrayList<Integer> decoded = new ArrayList<>(length / (4));
     int num = 0;
     int pre_num = 0;
-    for (int i = start; i < length; i++) {
+    for (int i = start; i < start + length; i++) {
       num = 0;
       while ((bytes[i] & 0x80) == 0x80) {
         num += bytes[i] & 0x7F;
