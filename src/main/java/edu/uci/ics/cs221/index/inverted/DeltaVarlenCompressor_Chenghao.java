@@ -51,6 +51,7 @@ public class DeltaVarlenCompressor_Chenghao implements Compressor {
             temp=temp+(byte)bytes[start+i]& 0b01111111;
             if((bytes[start+i]&0b10000000)==(byte)0){
                 result.add(temp);
+                temp=0;
             }
             else temp <<= 7;
 
