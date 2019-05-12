@@ -871,6 +871,8 @@ public class InvertedIndex implements AutoCloseable {
     if (this.positionListFileChannel != null) {
       this.positionListFileChannel.close();
     }
+    if (this.positionListReadBuffer != null) this.positionListReadBuffer.close();
+    if (this.postingListReadBuffer != null) this.postingListReadBuffer.close();
   }
 
   /** deserialize the header */
