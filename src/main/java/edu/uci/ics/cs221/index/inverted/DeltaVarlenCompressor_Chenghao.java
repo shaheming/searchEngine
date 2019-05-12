@@ -44,13 +44,18 @@ public class DeltaVarlenCompressor_Chenghao implements Compressor {
 
     @Override
     public List<Integer> decode(byte[] bytes, int start, int length) {
-        byte[] buffer=new byte[length];
+        if(start==0||length==0||length>bytes.length||(start+length)>bytes.length) return null;
+        List<Integer> result=new ArrayList<>();
+        int temp=0;
         for(int i=0;i<length;i++){
-            buffer[i]=bytes[start+i];
+            temp=temp+(byte)bytes[start+i]& 0b01111111;
+            if((bytes[start+i]&0b10000000)==(byte)0){
+                result.add(temp);
+            }
+            else temp <<= 7;
+
         }
 
-
-
-        throw new UnsupportedOperationException();
+        return result;
     }
 }
