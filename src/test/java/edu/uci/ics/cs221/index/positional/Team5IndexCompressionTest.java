@@ -141,19 +141,17 @@ public class Team5IndexCompressionTest {
     Assert.assertEquals(0, PageFileChannel.writeCounter);
     for (int i = 0; i < 3000; i++) {
       positional_list_naive_compressor.addDocument(
-          new Document("cat" + " cat" + " cat" + " and dog" + " dog" + i + " dog" + i));
+          new Document("cat" + " cat" + " cat" + " and dog" + " dog" + " dog"));
       positional_list_naive_compressor.addDocument(
-          new Document("pepsi" + " pepsi" + " pepsi" + " or coke" + i + " coke" + " coke"));
+          new Document("pepsi" + " pepsi" + " pepsi" + " or coke" + " coke" + " coke"));
       positional_list_naive_compressor.addDocument(
           new Document(
               "microsoft"
-                  + i
                   + " microsoft"
                   + i
                   + " microsoft"
                   + " vs apple"
                   + " apple"
-                  + i
                   + " apple"
                   + i));
     }
@@ -167,19 +165,17 @@ public class Team5IndexCompressionTest {
 
     for (int i = 0; i < 3000; i++) {
       positional_list_compressor.addDocument(
-          new Document("cat" + " cat" + " cat" + " and dog" + " dog" + i + " dog" + i));
+          new Document("cat" + " cat" + " cat" + " and dog" + " dog" + " dog"));
       positional_list_compressor.addDocument(
-          new Document("pepsi" + " pepsi" + " pepsi" + " or coke" + i + " coke" + " coke"));
+          new Document("pepsi" + " pepsi" + " pepsi" + " or coke" + " coke" + " coke"));
       positional_list_compressor.addDocument(
           new Document(
               "microsoft"
-                  + i
                   + " microsoft"
                   + i
                   + " microsoft"
                   + " vs apple"
                   + " apple"
-                  + i
                   + " apple"
                   + i));
     }
@@ -190,11 +186,11 @@ public class Team5IndexCompressionTest {
     int compress_wc = PageFileChannel.writeCounter;
     int compress_rc = PageFileChannel.readCounter;
     Assert.assertTrue(
-            "naive write counter > 1.5 delta compress write count  \n Actual  naive write: "
-                    + naive_wc
-                    + " delta write count: "
-                    + compress_wc,
-            naive_wc > 1.4 * compress_wc);
+        "naive write counter > 1.5 delta compress write count  \n Actual  naive write: "
+            + naive_wc
+            + " delta write count: "
+            + compress_wc,
+        naive_wc > 1.5 * compress_wc);
     Assert.assertTrue(
         "naive write counter > 1.5 delta compress read count, \n Actual naive write: "
             + naive_rc
@@ -268,10 +264,9 @@ public class Team5IndexCompressionTest {
 
   @After
   public void cleanup() throws Exception {
-      System.out.println("ii");
-      PageFileChannel.resetCounters();
-      Path rootPath = Paths.get("./index/Team5IndexCompressionTest");
-      Files.walk(rootPath).sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
-      Files.deleteIfExists(rootPath);
+    PageFileChannel.resetCounters();
+    Path rootPath = Paths.get("./index/Team5IndexCompressionTest");
+    Files.walk(rootPath).sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
+    Files.deleteIfExists(rootPath);
   }
 }
