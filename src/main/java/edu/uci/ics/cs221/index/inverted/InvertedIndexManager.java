@@ -238,12 +238,16 @@ public class InvertedIndexManager {
     Map<String, Document> result = new TreeMap<>();
     for (SegmentEntry entry : this.segmentMetaData.values()) {
       Map<String, Document> dos = entry.openInvertedList(this.workPath, this.compressor)
-              .searchQuery(newkey, "AND");
+              .search_phrase(newkey);
       result.putAll(dos);
       dos.clear();
     }
+    List<Document> res=new ArrayList<>();
 
-    throw new UnsupportedOperationException();
+    for (Map.Entry<String, Document> entry : result.entrySet()) {
+      res.add(entry.getValue());
+    }
+    return res.iterator();
   }
 
   /**

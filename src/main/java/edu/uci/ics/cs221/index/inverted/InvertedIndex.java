@@ -1002,6 +1002,54 @@ public class InvertedIndex implements AutoCloseable {
   }
 
 
+  public Map<String, Document> search_phrase(ArrayList<String> words) {
+    if (words.size() == 0) return new HashMap<>();
+    // read header
+    this.readHeader();
+    BitSet checker;
+    Map<String, ArrayList<Integer>> map;
+    Map<String, ArrayList<Integer>> map_positional_ptr;
+
+    try {
+      map = new HashMap<>(this.readWordsDocIdx(words));
+      map_positional_ptr=new HashMap<>(this.readWords_positional(words));
+
+    } catch (Exception e) {
+      return new HashMap<>();
+    }
+    if (map.size() == 0||map_positional_ptr.size()==0) return new HashMap<>();
+    checker = andAllIndex(map);
+
+    ArrayList<Integer> docIdx = new ArrayList<>();
+    for (int i = 0; i < checker.size(); i++) {
+      if (checker.get(i)) {
+        docIdx.add(i);
+      }
+    }
+
+    try {
+      return this.readDocuments(docIdx);
+    } catch (Exception e) {
+      System.out.println("read docs idx: " + Arrays.toString(docIdx.toArray()) + " failed");
+      return new HashMap<>();
+    } finally {
+      this.close();
+    }
+  }
+
+  public Map<String, ArrayList<Integer>> readWords_positional(ArrayList<String> words) {
+    Map<String, ArrayList<Integer>> synchronizedMap = Collections.synchronizedMap(new HashMap<>());
+    for (String word : words) {
+      if (this.wordsDicEntries.containsKey(word)) {
+        final InvertedIndexHeaderEntry entry = this.wordsDicEntries.get(word);
+        synchronizedMap.put(entry.getKey(), this.readPositionListPtrs(entry));
+      }
+      else {
+        synchronizedMap.put(word, new ArrayList<>());
+      }
+    }
+    return synchronizedMap;
+  }
   /**
    * parallel reading the document indexes from the file
    *
@@ -1018,6 +1066,7 @@ public class InvertedIndex implements AutoCloseable {
       if (this.wordsDicEntries.containsKey(word)) {
         final InvertedIndexHeaderEntry entry = this.wordsDicEntries.get(word);
         synchronizedMap.put(entry.getKey(), this.readDocIds(entry));
+
       } else {
         //        synchronized (synchronizedMap) {
         //          synchronizedMap.put(word, new ArrayList<>());
