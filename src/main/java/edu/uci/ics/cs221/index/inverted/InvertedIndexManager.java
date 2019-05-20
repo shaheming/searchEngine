@@ -4,6 +4,7 @@ package edu.uci.ics.cs221.index.inverted;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.HashBasedTable;
 import edu.uci.ics.cs221.analysis.Analyzer;
+import edu.uci.ics.cs221.analysis.PorterStemmer;
 import edu.uci.ics.cs221.storage.Document;
 
 import java.io.BufferedWriter;
@@ -228,6 +229,19 @@ public class InvertedIndexManager {
    */
   public Iterator<Document> searchPhraseQuery(List<String> phrase) {
     Preconditions.checkNotNull(phrase);
+    //stem the key words
+    ArrayList<String> newkey=new ArrayList<>();
+    PorterStemmer stemmer=new PorterStemmer();
+    for(int i=0;i<phrase.size();i++)
+      newkey.add(stemmer.stem(phrase.get(i)));
+
+    Map<String, Document> result = new TreeMap<>();
+    for (SegmentEntry entry : this.segmentMetaData.values()) {
+      Map<String, Document> dos = entry.openInvertedList(this.workPath, this.compressor)
+              .searchQuery(newkey, "AND");
+      result.putAll(dos);
+      dos.clear();
+    }
 
     throw new UnsupportedOperationException();
   }

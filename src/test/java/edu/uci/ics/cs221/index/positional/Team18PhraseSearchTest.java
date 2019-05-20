@@ -42,13 +42,15 @@ public class Team18PhraseSearchTest {
 
     @After
     public void clear(){
-        File dir = new File("./index/Team18PhraseTest");
+        File dir = new File("./index/Team18PhraseSearchTest");
         for (File file: dir.listFiles()){
             if (!file.isDirectory()){
                 file.delete();
             }
         }
         dir.delete();
+        InvertedIndexManager.DEFAULT_FLUSH_THRESHOLD = 1000;
+        InvertedIndexManager.DEFAULT_MERGE_THRESHOLD = 8;
     }
 
     // test if the basic phrase query has been implemented successfully
@@ -90,8 +92,8 @@ public class Team18PhraseSearchTest {
     // test if search spans in multiple segments and merged segments
     @Test
     public void test3(){
-        manager.DEFAULT_FLUSH_THRESHOLD = 2;
-        manager.DEFAULT_MERGE_THRESHOLD = 3;
+        InvertedIndexManager.DEFAULT_FLUSH_THRESHOLD = 2;
+        InvertedIndexManager.DEFAULT_MERGE_THRESHOLD = 4;
         for(Document doc : documents1){
             manager.addDocument(doc);
         }

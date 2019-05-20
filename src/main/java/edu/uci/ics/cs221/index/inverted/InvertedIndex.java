@@ -1001,6 +1001,7 @@ public class InvertedIndex implements AutoCloseable {
     }
   }
 
+
   /**
    * parallel reading the document indexes from the file
    *

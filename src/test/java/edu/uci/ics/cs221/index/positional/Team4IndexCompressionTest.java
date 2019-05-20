@@ -22,7 +22,7 @@ public class Team4IndexCompressionTest {
     Document doc1 = new Document("dog");
     Document doc2 = new Document(String.join(" ", Collections.nCopies(4096, "cat")));
 
-    private static final String indexFolder = "./index/IndexCompressionTest/";
+    private static final String indexFolder = "./index/Team4IndexCompressionTest/";
 
     NaiveCompressor naiveCompressor = null;
     DeltaVarLenCompressor deltaVarLenCompressor = null;
@@ -100,7 +100,7 @@ public class Team4IndexCompressionTest {
         int dvlCount = PageFileChannel.writeCounter;
 
         assertTrue(naiveCount/(double)dvlCount < 4);
-        assertTrue(naiveCount/(double)dvlCount > 3);
+        assertTrue(naiveCount/(double)dvlCount > 1.5);
     }
 
     @After
@@ -126,6 +126,7 @@ public class Team4IndexCompressionTest {
             }
         }
         cacheFolder.delete();
+        new File(indexFolder).delete();
     }
 
 }
