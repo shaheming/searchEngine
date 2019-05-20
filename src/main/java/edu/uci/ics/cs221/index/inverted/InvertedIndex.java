@@ -1036,11 +1036,12 @@ public class InvertedIndex implements AutoCloseable {
       temp_list.clear();
       temp_position_ptr.clear();
     }
+    //add all the files related to first word
+    Map<Integer,ArrayList<Integer>> xx=final_map.get(words.get(0));
+    for (Map.Entry<Integer,ArrayList<Integer>> entry : xx.entrySet()) {
+      docIdx.add(entry.getKey());
+    }
     if(words.size()==1){
-      Map<Integer,ArrayList<Integer>> xx=final_map.get(words.get(0));
-      for (Map.Entry<Integer,ArrayList<Integer>> entry : xx.entrySet()) {
-        docIdx.add(entry.getKey());
-      }
       try {
         return this.readDocuments(docIdx);
       }
@@ -1049,11 +1050,36 @@ public class InvertedIndex implements AutoCloseable {
       }
     }
 
-
     for(int i=1;i<words.size();i++){
-      String keyword=words.get(i);
-      final_map.get(keyword);
+      Map<Integer,ArrayList<Integer>> yy=final_map.get(words.get(i));
+      for (Map.Entry<Integer,ArrayList<Integer>> entry : yy.entrySet()) {
+        Integer doc=entry.getKey();
+        if(xx.containsKey(entry.getKey())){
+          ArrayList<Integer> list_main=xx.get(entry.getKey());
+          ArrayList<Integer> list_new=yy.get(entry.getKey());
+          boolean flag=false;
+          for(int j=0;j<list_main.size();j++){
+            for(int l=0;l<list_new.size();l++) {
+              if(list_main.get(j)==list_new.get(i)+i) {
+                flag=true;
+                break;
+              }
 
+            }
+            if(flag) break;
+          }
+          if(!flag){
+            int index=docIdx.indexOf(doc);
+            docIdx.remove(index);
+
+          }//no such file
+        }
+        else{
+          //no such file
+          int index=docIdx.indexOf(doc);
+          docIdx.remove(index);
+        }
+      }
 
 
     }
