@@ -235,19 +235,14 @@ public class InvertedIndexManager {
     for(int i=0;i<phrase.size();i++)
       newkey.add(stemmer.stem(phrase.get(i)).toLowerCase());
 
-    Map<String, Document> result = new TreeMap<>();
+    List<Document> result = new ArrayList<>();
     for (SegmentEntry entry : this.segmentMetaData.values()) {
       Map<String, Document> dos = entry.openInvertedList(this.workPath, this.compressor)
               .search_phrase(newkey);
-      result.putAll(dos);
-    }
-    List<Document> res=new ArrayList<>();
-
-    for (Map.Entry<String, Document> entry : result.entrySet()) {
-      res.add(entry.getValue());
+      result.addAll(dos.values());
     }
 
-    return res.iterator();
+    return result.iterator();
   }
 
   /**
