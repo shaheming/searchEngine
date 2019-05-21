@@ -84,7 +84,7 @@ class SegmentEntry {
  * <p>Please refer to the project 2 wiki page for implementation guidelines.
  */
 public class InvertedIndexManager {
-
+  public static boolean flag=false;
   /**
    * The default flush threshold, in terms of number of documents. For example, a new Segment should
    * be automatically created whenever there's 1000 documents in the buffer.
@@ -179,7 +179,7 @@ public class InvertedIndexManager {
 
   /** Creates an inverted index manager with the folder and an analyzer */
   public static InvertedIndexManager createOrOpen(String indexFolder, Analyzer analyzer) {
-
+    flag=false;
     try {
       Path indexFolderPath = Paths.get(indexFolder);
       if (Files.exists(indexFolderPath) && Files.isDirectory(indexFolderPath)) {
@@ -203,6 +203,7 @@ public class InvertedIndexManager {
    */
   public static InvertedIndexManager createOrOpenPositional(
       String indexFolder, Analyzer analyzer, Compressor compressor) {
+    flag=true;
     try {
       Path indexFolderPath = Paths.get(indexFolder);
       if (Files.exists(indexFolderPath) && Files.isDirectory(indexFolderPath)) {
@@ -231,7 +232,8 @@ public class InvertedIndexManager {
    * @return a iterator of documents matching the query
    */
   public Iterator<Document> searchPhraseQuery(List<String> phrase) {
-    
+    if(!flag)
+      throw new UnsupportedOperationException();
     Preconditions.checkNotNull(phrase);
     //stem the key words
     ArrayList<String> newkey=new ArrayList<>();
