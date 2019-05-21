@@ -233,7 +233,7 @@ public class InvertedIndexManager {
     ArrayList<String> newkey=new ArrayList<>();
     PorterStemmer stemmer=new PorterStemmer();
     for(int i=0;i<phrase.size();i++)
-      newkey.add(stemmer.stem(phrase.get(i)));
+      newkey.add(stemmer.stem(phrase.get(i)).toLowerCase());
 
     Map<String, Document> result = new TreeMap<>();
     for (SegmentEntry entry : this.segmentMetaData.values()) {

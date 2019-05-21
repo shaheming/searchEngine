@@ -1061,9 +1061,7 @@ public class InvertedIndex implements AutoCloseable {
               if((list_main.get(j)+i)==list_new.get(l)) {
                 flag=true;
                 break;
-
               }
-
             }
             if(flag) break;
           }
@@ -1085,11 +1083,6 @@ public class InvertedIndex implements AutoCloseable {
 
 
     }
-
-    Collections.sort(docIdx);
-
-
-
 
     try {
       return this.readDocuments(docIdx);
