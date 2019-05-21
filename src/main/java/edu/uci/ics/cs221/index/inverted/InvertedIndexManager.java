@@ -229,20 +229,29 @@ public class InvertedIndexManager {
    */
   public Iterator<Document> searchPhraseQuery(List<String> phrase) {
     Preconditions.checkNotNull(phrase);
-    //stem the key words
-    ArrayList<String> newkey=new ArrayList<>();
-    PorterStemmer stemmer=new PorterStemmer();
-    for(int i=0;i<phrase.size();i++)
-      newkey.add(stemmer.stem(phrase.get(i)));
+    // stem the key words
+    ArrayList<String> newkey = new ArrayList<>();
+    PorterStemmer stemmer = new PorterStemmer();
+    for (int i = 0; i < phrase.size(); i++) newkey.add(stemmer.stem(phrase.get(i)));
 
-    List<Document> result = new ArrayList<>();
+    Map<String, Document> result = new TreeMap<>();
+    int order = 0;
     for (SegmentEntry entry : this.segmentMetaData.values()) {
-      Map<String, Document> dos = entry.openInvertedList(this.workPath, this.compressor)
+      Map<String, Document> dos =
+          entry
+              .openInvertedList(this.workPath, this.compressor)
+              .setSearchOrder(order)
               .search_phrase(newkey);
-      result.addAll(dos.values());
+      order++;
+      result.putAll(dos);
+    }
+    List<Document> res = new ArrayList<>();
+
+    for (Map.Entry<String, Document> entry : result.entrySet()) {
+      res.add(entry.getValue());
     }
 
-    return result.iterator();
+    return res.iterator();
   }
 
   /**
