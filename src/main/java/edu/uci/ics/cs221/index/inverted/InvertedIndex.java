@@ -1032,8 +1032,6 @@ public class InvertedIndex implements AutoCloseable {
 
       }
       final_map.put(temp_key,temp_map);
-      temp_list.clear();
-      temp_position_ptr.clear();
     }
     System.out.println("final size"+final_map.size());
 
@@ -1055,7 +1053,6 @@ public class InvertedIndex implements AutoCloseable {
       Map<Integer,ArrayList<Integer>> yy=final_map.get(words.get(i));
       System.out.println("size"+yy.size());
       for (Map.Entry<Integer,ArrayList<Integer>> entry : yy.entrySet()) {
-
         Integer doc=entry.getKey();
         System.out.println(doc+" word:"+words.get(i));
         if(xx.containsKey(entry.getKey())){
@@ -1065,7 +1062,6 @@ public class InvertedIndex implements AutoCloseable {
           for(int j=0;j<list_main.size();j++){
             for(int l=0;l<list_new.size();l++) {
               if((list_main.get(j)+i)==list_new.get(l)) {
-
                 flag=true;
                 break;
 
@@ -1076,14 +1072,16 @@ public class InvertedIndex implements AutoCloseable {
           }
           if(!flag){
             int index=docIdx.indexOf(doc);
-            docIdx.remove(index);
+            if(index>=0)
+              docIdx.remove(index);
 
           }//no such file
         }
         else{
           //no such file
           int index=docIdx.indexOf(doc);
-          docIdx.remove(index);
+          if(index>=0)
+            docIdx.remove(index);
         }
       }
 
