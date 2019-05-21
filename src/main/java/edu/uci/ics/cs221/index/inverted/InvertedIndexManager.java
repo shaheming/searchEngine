@@ -240,13 +240,13 @@ public class InvertedIndexManager {
       Map<String, Document> dos = entry.openInvertedList(this.workPath, this.compressor)
               .search_phrase(newkey);
       result.putAll(dos);
-      dos.clear();
     }
     List<Document> res=new ArrayList<>();
 
     for (Map.Entry<String, Document> entry : result.entrySet()) {
       res.add(entry.getValue());
     }
+
     return res.iterator();
   }
 

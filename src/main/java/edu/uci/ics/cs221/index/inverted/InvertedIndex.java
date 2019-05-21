@@ -1089,7 +1089,7 @@ public class InvertedIndex implements AutoCloseable {
 
     }
 
-
+    Collections.sort(docIdx);
 
 
 

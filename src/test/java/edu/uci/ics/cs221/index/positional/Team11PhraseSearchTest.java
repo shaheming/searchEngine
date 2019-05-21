@@ -113,6 +113,7 @@ public class Team11PhraseSearchTest {
         List<Document> expectedDocuments = Arrays.asList(documents[0], documents[2], documents[6]);
         Iterator<Document> itr = index.searchPhraseQuery(Arrays.asList("good", "idea"));
         while (itr.hasNext()){
+            System.out.println(i);
             assertEquals(itr.next(), expectedDocuments.get(i++));
         }
     }
