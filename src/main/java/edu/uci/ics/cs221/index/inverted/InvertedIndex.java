@@ -59,6 +59,42 @@ class LRUPageCache {
   }
 }
 
+class LRUPositionListCache {
+  private Integer capacity = 5;
+  private Map<Integer, SimpleEntry<Integer, ArrayList<Integer>>> map = new HashMap<>();
+  private LinkedList<SimpleEntry<Integer, ArrayList<Integer>>> list = new LinkedList<>();
+
+  LRUPositionListCache() {}
+
+  LRUPositionListCache(Integer c) {
+    this.capacity = c;
+  }
+
+  public void put(Integer ptr, ArrayList<Integer> positionList) {
+    if (list.size() > capacity) {
+      SimpleEntry<Integer, ArrayList<Integer>> entry = list.removeFirst();
+      this.map.remove(entry.getKey());
+    }
+    SimpleEntry<Integer, ArrayList<Integer>> entry = new SimpleEntry<>(ptr, positionList);
+    list.add(entry);
+    map.put(ptr, entry);
+  }
+
+  public ArrayList<Integer> get(Integer page_num) {
+    if (map.containsKey(page_num)) {
+      SimpleEntry<Integer, ArrayList<Integer>> entry = map.get(page_num);
+      list.remove(entry);
+      entry.getValue().clear();
+      list.add(entry);
+      return entry.getValue();
+    } else return null;
+  }
+
+  public void clear() {
+    this.map.clear();
+    this.list.clear();
+  }
+}
 /** Note the write buffer should class flush after finish all writing behaviors */
 class PageWriteBuffer {
   private ByteBuffer buffer1 = ByteBuffer.allocate(PageFileChannel.PAGE_SIZE + 100);
@@ -412,6 +448,7 @@ public class InvertedIndex implements AutoCloseable {
   private Compressor compressor = new DeltaVarLenCompressor();
   private PageReadBuffer postingListReadBuffer = null;
   private PageReadBuffer positionListReadBuffer = null;
+  private LRUPositionListCache positionListCache = null;
   private Table<String, Integer, List<Integer>> position = TreeBasedTable.create();
   private Integer searchOrder = 0;
   /** @param workPath the path of work dir */
@@ -667,6 +704,7 @@ public class InvertedIndex implements AutoCloseable {
     if (!this.postingListReadBuffer.isOpen()) {
       this.postingListReadBuffer.openChannel();
     }
+
     this.postingListReadBuffer.setPosition(entry.getDocIdListPtr());
     int counter = this.postingListReadBuffer.readListLen();
     this.postingListReadBuffer.movePtrNBytes(counter);
@@ -1194,12 +1232,20 @@ public class InvertedIndex implements AutoCloseable {
   }
 
   private ArrayList<Integer> readPositionList(Integer ptr) {
+    if (this.positionListCache == null) {
+      positionListCache = new LRUPositionListCache();
+    }
+    ArrayList<Integer> positionList = positionListCache.get(ptr);
+    if (positionList != null) {
+      return positionList;
+    }
     ByteOutputStream bytesteam = readRawPositionList(ptr);
-    ArrayList<Integer> positionList = new ArrayList<>();
+    positionList = new ArrayList<>();
     if (bytesteam.getCount() > 0) {
       List<Integer> ptrs = compressor.decode(bytesteam.getBytes(), 0, bytesteam.getCount());
       positionList.addAll(ptrs);
     }
+    positionListCache.put(ptr, positionList);
     return positionList;
   }
 
