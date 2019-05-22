@@ -1138,7 +1138,7 @@ public class InvertedIndex implements AutoCloseable {
         if (!flag) break;
       }
     }
-    
+
     ArrayList<Integer> final_list=new ArrayList<>();
     for(int i=0;i<docIdx.size();i++){
       if(docIdx.get(i)!=-1)
