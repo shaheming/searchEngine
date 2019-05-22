@@ -1051,12 +1051,11 @@ public class InvertedIndex implements AutoCloseable {
       }
     }
 
-    for(int i=1;i<words.size();i++){
+    /*for(int i=1;i<words.size();i++){
       Map<Integer,ArrayList<Integer>> yy=final_map.get(words.get(i));
       for (Map.Entry<Integer,ArrayList<Integer>> entry : xx.entrySet()) {
         Integer doc=entry.getKey();
         if(yy.containsKey(entry.getKey())){
-          System.out.println("");
           ArrayList<Integer> list_main=xx.get(entry.getKey());
           ArrayList<Integer> list_new=yy.get(entry.getKey());
           boolean flag=false;
@@ -1086,7 +1085,53 @@ public class InvertedIndex implements AutoCloseable {
 
 
 
+    }*/
+
+    for (Map.Entry<Integer,ArrayList<Integer>> entry : xx.entrySet()) {
+      boolean flag=true;
+      int id=entry.getKey();
+      ArrayList<Integer> getlist=entry.getValue();
+      for(int i=0;i<getlist.size();i++){
+        int counter=0;
+        int positional=getlist.get(i);
+        for(int j=1;j<words.size();j++) {
+          Map<Integer,ArrayList<Integer>> yy=final_map.get(words.get(j));
+          if(yy.containsKey(id)){
+            ArrayList<Integer> list_new=yy.get(id);
+            for(int l=0;l<list_new.size();l++){
+              if(list_new.get(l)==positional+j){
+                //todo yes //break
+                counter++;
+                break;
+              }
+            }
+          }
+          else{
+            flag=false;
+            int index=docIdx.indexOf(id);
+            if(index>=0)
+              docIdx.remove(index);
+            break;
+          }
+          if(!flag) break;
+        }
+
+        if(counter==words.size()-1){
+          break;
+        }
+        if(i==getlist.size()-1){
+          int index=docIdx.indexOf(id);
+          if(index>=0)
+            docIdx.remove(index);
+          break;
+        }
+
+        if(!flag) break;
+      }
     }
+    //docIdx.clear();
+    //for(Map.Entry<Integer,ArrayList<Integer>> entry : xx.entrySet())
+      //docIdx.add(entry.getKey());
 
     try {
       return this.readDocuments(docIdx);
