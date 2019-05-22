@@ -1128,7 +1128,7 @@ public class InvertedIndex implements AutoCloseable {
             }
           } else {
             flag = false;
-            int index = Collections.binarySearch(docIdx, id);
+            int index = docIdx.indexOf(id);
             if (index >= 0)
               docIdx.set(index,-1);
             break;
@@ -1140,10 +1140,10 @@ public class InvertedIndex implements AutoCloseable {
           break;
         }
         if (i == getlist.size() - 1) {
-          int index = Collections.binarySearch(docIdx, id);
+          int index = docIdx.indexOf(id);
           if (index >= 0)
-            docIdx.set(index,-1);;
-            break;
+            docIdx.set(index,-1);
+          break;
         }
 
         if (!flag) break;
