@@ -1012,7 +1012,7 @@ public class InvertedIndex implements AutoCloseable {
     this.readHeader();
     Map<String, ArrayList<Integer>> map;
     Map<String, ArrayList<Integer>> map_positional_ptr;
-    Map<String,Map<Integer,ArrayList<Integer>>> final_map=new HashMap<>();//docid,positionallist
+    //Map<String,Map<Integer,ArrayList<Integer>>> final_map=new HashMap<>();//docid,positionallist
     ArrayList<Integer> docIdx = new ArrayList<>();
 
     try {
@@ -1024,7 +1024,7 @@ public class InvertedIndex implements AutoCloseable {
     }
     if (map.size() == 0||map_positional_ptr.size()==0) return new HashMap<>();
     //build a map for search (the word has the same order as the input)
-    for (Map.Entry<String, ArrayList<Integer>> entry : map.entrySet()) {
+    /*for (Map.Entry<String, ArrayList<Integer>> entry : map.entrySet()) {
       String temp_key=entry.getKey();
       ArrayList<Integer> temp_list=entry.getValue();
       ArrayList<Integer> temp_position_ptr=map_positional_ptr.get(temp_key);
@@ -1035,13 +1035,18 @@ public class InvertedIndex implements AutoCloseable {
 
       }
       final_map.put(temp_key,temp_map);
-    }
+    }*/
 
     //add all the files related to first word
-    Map<Integer,ArrayList<Integer>> xx=final_map.get(words.get(0));
-    for (Map.Entry<Integer,ArrayList<Integer>> entry : xx.entrySet()) {
-      docIdx.add(entry.getKey());
+    //Map<Integer,ArrayList<Integer>> xx=final_map.get(words.get(0));
+    //for (Map.Entry<Integer,ArrayList<Integer>> entry : xx.entrySet()) {
+    //  docIdx.add(entry.getKey());
+    //}
+    ArrayList<Integer> temp_list=map.get(words.get(0));
+    for(int i=0;i<temp_list.size();i++){
+      docIdx.add(temp_list.get(i));
     }
+
     if(words.size()==1){
       try {
         return this.readDocuments(docIdx);
@@ -1087,46 +1092,48 @@ public class InvertedIndex implements AutoCloseable {
 
     }*/
 
-    for (Map.Entry<Integer,ArrayList<Integer>> entry : xx.entrySet()) {
-      boolean flag=true;
-      int id=entry.getKey();
-      ArrayList<Integer> getlist=entry.getValue();
-      for(int i=0;i<getlist.size();i++){
-        int counter=0;
-        int positional=getlist.get(i);
-        for(int j=1;j<words.size();j++) {
-          Map<Integer,ArrayList<Integer>> yy=final_map.get(words.get(j));
-          if(yy.containsKey(id)){
-            ArrayList<Integer> list_new=yy.get(id);
-            for(int l=0;l<list_new.size();l++){
-              if(list_new.get(l)==positional+j){
-                //todo yes //break
-                counter++;
-                break;
+    for (int num=0;num<temp_list.size();num++) {
+      boolean flag = true;
+      int id = temp_list.get(num);
+      ArrayList<Integer> ptrlist = map_positional_ptr.get(words.get(0));
+      for (int ptr=0;ptr<ptrlist.size();ptr++){
+        ArrayList<Integer> getlist = null;
+          for (int i = 0; i < getlist.size(); i++) {
+          int counter = 0;
+          int positional = getlist.get(i);
+          for (int j = 1; j < words.size(); j++) {
+            Map<Integer, ArrayList<Integer>> yy = map.get(words.get(j));
+            if (yy.containsKey(id)) {
+              ArrayList<Integer> list_new = yy.get(id);
+              for (int l = 0; l < list_new.size(); l++) {
+                if (list_new.get(l) == positional + j) {
+                  //todo yes //break
+                  counter++;
+                  break;
+                }
               }
+            } else {
+              flag = false;
+              int index = docIdx.indexOf(id);
+              if (index >= 0)
+                docIdx.remove(index);
+              break;
             }
+            if (!flag) break;
           }
-          else{
-            flag=false;
-            int index=docIdx.indexOf(id);
-            if(index>=0)
+
+          if (counter == words.size() - 1) {
+            break;
+          }
+          if (i == getlist.size() - 1) {
+            int index = docIdx.indexOf(id);
+            if (index >= 0)
               docIdx.remove(index);
             break;
           }
-          if(!flag) break;
-        }
 
-        if(counter==words.size()-1){
-          break;
+          if (!flag) break;
         }
-        if(i==getlist.size()-1){
-          int index=docIdx.indexOf(id);
-          if(index>=0)
-            docIdx.remove(index);
-          break;
-        }
-
-        if(!flag) break;
       }
     }
     //docIdx.clear();
