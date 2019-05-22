@@ -1072,7 +1072,7 @@ public class InvertedIndex implements AutoCloseable {
     this.readHeader();
     Map<String, ArrayList<Integer>> map;
     Map<String, ArrayList<Integer>> map_positional_ptr;
-    Map<String, Map<Integer, ArrayList<Integer>>> final_map = new HashMap<>(); // docid,positionallist
+    //Map<String, Map<Integer, ArrayList<Integer>>> final_map = new HashMap<>(); // docid,positionallist
     ArrayList<Integer> docIdx = new ArrayList<>();
 
     try {
@@ -1084,7 +1084,7 @@ public class InvertedIndex implements AutoCloseable {
     }
     if (map.size() == 0 || map_positional_ptr.size() == 0) return new HashMap<>();
     // build a map for search (the word has the same order as the input)
-    for (Map.Entry<String, ArrayList<Integer>> entry : map.entrySet()) {
+   /* for (Map.Entry<String, ArrayList<Integer>> entry : map.entrySet()) {
       String temp_key = entry.getKey();
       ArrayList<Integer> temp_list = entry.getValue();
       ArrayList<Integer> temp_position_ptr = map_positional_ptr.get(temp_key);
@@ -1094,13 +1094,19 @@ public class InvertedIndex implements AutoCloseable {
         temp_map.put(temp_list.get(j), temp_position_list);
       }
       final_map.put(temp_key, temp_map);
-    }
+    }*/
 
     // add all the files related to first word
-    Map<Integer, ArrayList<Integer>> xx = final_map.get(words.get(0));
-    for (Map.Entry<Integer, ArrayList<Integer>> entry : xx.entrySet()) {
-      docIdx.add(entry.getKey());
+    //Map<Integer, ArrayList<Integer>> xx = final_map.get(words.get(0));
+    //for (Map.Entry<Integer, ArrayList<Integer>> entry : xx.entrySet()) {
+      //docIdx.add(entry.getKey());
+    //}
+
+    ArrayList<Integer> temp_ilist=map.get(words.get(0));
+    for (int i=0;i <temp_ilist.size();i++) {
+      docIdx.add(temp_ilist.get(i));
     }
+
     if (words.size() == 1) {
       try {
         return this.readDocuments(docIdx);
@@ -1108,25 +1114,29 @@ public class InvertedIndex implements AutoCloseable {
         return new HashMap<>();
       }
     }
-
-    for (Map.Entry<Integer, ArrayList<Integer>> entry : xx.entrySet()) {
+    ArrayList<Integer> ptr_list=map_positional_ptr.get(words.get(0));
+    for (int num=0;num<docIdx.size();num++) {
+      if(docIdx.get(num)==-1) continue;
       boolean flag = true;
-      int id = entry.getKey();
-      ArrayList<Integer> getlist = entry.getValue();
+      Integer id = docIdx.get(num);//document id
+      ArrayList<Integer> getlist = readPositionList(ptr_list.get(num));//postional list
       for (int i = 0; i < getlist.size(); i++) {
         int counter = 0;
         int positional = getlist.get(i);
         for (int j = 1; j < words.size(); j++) {
-          Map<Integer, ArrayList<Integer>> yy = final_map.get(words.get(j));
-          if (yy.containsKey(id)) {
-            ArrayList<Integer> list_new = yy.get(id);
+          ArrayList<Integer> ptr_list_temp=map_positional_ptr.get(words.get(j));
+          ArrayList<Integer> yy = map.get(words.get(j));
+          if (yy.indexOf(id)>=0) {
+            int temp_index=yy.indexOf(id);
+            ArrayList<Integer> list_new = readPositionList(ptr_list_temp.get(temp_index));
             for (int l = 0; l < list_new.size(); l++) {
               if (list_new.get(l) == positional + j) {
                 counter++;
                 break;
               }
             }
-          } else {
+          }
+          else {
             flag = false;
             int index = docIdx.indexOf(id);
             if (index >= 0)
