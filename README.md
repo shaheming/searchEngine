@@ -23,6 +23,16 @@ Based on previous project(analyer), it tokenlize and stem the input document. We
 3. search(and and or)
 4. delete
 
+
+## Project 3
+In this project, we implement:
+
+Based on the previous project, we add a poistional list for each element of inverted list. So we allow user to search with a specific order of key words. 
+Also, we compressed the data based on delta encoding and variable-length encoding.
+
+
+
+
 ### To run this example: 
 1. run `mvn clean install -DskipTests` in command line
 2. open IntelliJ -> Open -> Choose the directory. Wait for IntelliJ to finish importing and building.
