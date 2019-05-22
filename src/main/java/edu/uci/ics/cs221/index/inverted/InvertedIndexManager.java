@@ -4,8 +4,6 @@ package edu.uci.ics.cs221.index.inverted;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.HashBasedTable;
 import edu.uci.ics.cs221.analysis.Analyzer;
-import edu.uci.ics.cs221.analysis.PorterStemmer;
-import edu.uci.ics.cs221.analysis.PunctuationTokenizer;
 import edu.uci.ics.cs221.storage.Document;
 
 import java.io.BufferedWriter;
@@ -233,20 +231,11 @@ public class InvertedIndexManager {
   public Iterator<Document> searchPhraseQuery(List<String> phrase) {
     if (!flag) throw new UnsupportedOperationException();
     Preconditions.checkNotNull(phrase);
-
-    // stem the key words
-    ArrayList<String> newkey = new ArrayList<>();
-    PorterStemmer stemmer = new PorterStemmer();
-    PunctuationTokenizer punctuationTokenizer = new PunctuationTokenizer();
-
-    for (int i = 0; i < phrase.size(); i++) {
-
-      if (!punctuationTokenizer.tokenize(phrase.get(i)).isEmpty()) {
-        String ss = punctuationTokenizer.tokenize(phrase.get(i)).get(0);
-        System.out.println(ss);
-        newkey.add(stemmer.stem(ss));
-      }
+    StringJoiner joiner = new StringJoiner(" ");
+    for (String p : phrase) {
+      joiner.add(p);
     }
+    List<String> newkey = this.analyzer.analyze(joiner.toString());
     Map<String, Document> result = new TreeMap<>();
     int order = 0;
     for (SegmentEntry entry : this.segmentMetaData.values()) {
@@ -254,7 +243,7 @@ public class InvertedIndexManager {
           entry
               .openInvertedList(this.workPath, this.compressor)
               .setSearchOrder(order)
-              .search_phrase(newkey);
+              .searchPhrase(newkey);
       order++;
       result.putAll(dos);
     }
