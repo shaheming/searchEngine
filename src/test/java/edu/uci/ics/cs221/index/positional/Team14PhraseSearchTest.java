@@ -147,7 +147,8 @@ public class Team14PhraseSearchTest {
         int counter = 0;
         while (it.hasNext()) {
             counter++;
-            it.next();
+            System.out.println(it.next().getText());
+
         }
         assertEquals(expectedCount, counter);
     }
