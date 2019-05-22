@@ -5,6 +5,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.HashBasedTable;
 import edu.uci.ics.cs221.analysis.Analyzer;
 import edu.uci.ics.cs221.analysis.PorterStemmer;
+import edu.uci.ics.cs221.analysis.PunctuationTokenizer;
 import edu.uci.ics.cs221.storage.Document;
 
 import java.io.BufferedWriter;
@@ -82,7 +83,7 @@ class SegmentEntry {
  * <p>Please refer to the project 2 wiki page for implementation guidelines.
  */
 public class InvertedIndexManager {
-
+  public static boolean flag = false;
   /**
    * The default flush threshold, in terms of number of documents. For example, a new Segment should
    * be automatically created whenever there's 1000 documents in the buffer.
@@ -177,6 +178,7 @@ public class InvertedIndexManager {
 
   /** Creates an inverted index manager with the folder and an analyzer */
   public static InvertedIndexManager createOrOpen(String indexFolder, Analyzer analyzer) {
+    flag = false;
     try {
       Path indexFolderPath = Paths.get(indexFolder);
       if (Files.exists(indexFolderPath) && Files.isDirectory(indexFolderPath)) {
@@ -200,6 +202,7 @@ public class InvertedIndexManager {
    */
   public static InvertedIndexManager createOrOpenPositional(
       String indexFolder, Analyzer analyzer, Compressor compressor) {
+    flag = true;
     try {
       Path indexFolderPath = Paths.get(indexFolder);
       if (Files.exists(indexFolderPath) && Files.isDirectory(indexFolderPath)) {
@@ -228,12 +231,22 @@ public class InvertedIndexManager {
    * @return a iterator of documents matching the query
    */
   public Iterator<Document> searchPhraseQuery(List<String> phrase) {
+    if (!flag) throw new UnsupportedOperationException();
     Preconditions.checkNotNull(phrase);
+
     // stem the key words
     ArrayList<String> newkey = new ArrayList<>();
     PorterStemmer stemmer = new PorterStemmer();
-    for (int i = 0; i < phrase.size(); i++) newkey.add(stemmer.stem(phrase.get(i)));
+    PunctuationTokenizer punctuationTokenizer = new PunctuationTokenizer();
 
+    for (int i = 0; i < phrase.size(); i++) {
+
+      if (!punctuationTokenizer.tokenize(phrase.get(i)).isEmpty()) {
+        String ss = punctuationTokenizer.tokenize(phrase.get(i)).get(0);
+        System.out.println(ss);
+        newkey.add(stemmer.stem(ss));
+      }
+    }
     Map<String, Document> result = new TreeMap<>();
     int order = 0;
     for (SegmentEntry entry : this.segmentMetaData.values()) {

@@ -1186,8 +1186,6 @@ public class InvertedIndex implements AutoCloseable {
       }
     }
 
-    Collections.sort(docIdx);
-
     try {
       return this.readDocuments(docIdx);
     } catch (Exception e) {
@@ -1196,6 +1194,16 @@ public class InvertedIndex implements AutoCloseable {
     } finally {
       this.close();
     }
+  }
+
+  private ArrayList<Integer> readPositionList(Integer ptr) {
+    ByteOutputStream bytesteam = readRawPositionList(ptr);
+    ArrayList<Integer> positionList = new ArrayList<>();
+    if (bytesteam.getCount() > 0) {
+      List<Integer> ptrs = compressor.decode(bytesteam.getBytes(), 0, bytesteam.getCount());
+      positionList.addAll(ptrs);
+    }
+    return positionList;
   }
 
   public Map<String, ArrayList<Integer>> readWords_positional(ArrayList<String> words) {
@@ -1209,16 +1217,6 @@ public class InvertedIndex implements AutoCloseable {
       }
     }
     return synchronizedMap;
-  }
-
-  private ArrayList<Integer> readPositionList(Integer ptr) {
-    ByteOutputStream bytesteam = readRawPositionList(ptr);
-    ArrayList<Integer> positionList = new ArrayList<>();
-    if (bytesteam.getCount() > 0) {
-      List<Integer> ptrs = compressor.decode(bytesteam.getBytes(), 0, bytesteam.getCount());
-      positionList.addAll(ptrs);
-    }
-    return positionList;
   }
 
   public Map<String, List<Integer>> getAllInvertList() {
