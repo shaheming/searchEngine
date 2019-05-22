@@ -958,21 +958,18 @@ public class InvertedIndex implements AutoCloseable {
 
     // read header
     this.readHeader();
-    //    System.out.println("Search " + Arrays.toString(words.toArray()) + " " + query);
-    Map<String, ArrayList<Integer>> map;
-    // search header
-    try {
-      map = new HashMap<>(this.readWordsDocIdx(words));
-    } catch (Exception e) {
-      return new HashMap<>();
+    ArrayList<String> filteredWords = new ArrayList<>();
+    for (String word : words) {
+      if (this.wordsDicEntries.containsKey(word)) {
+        filteredWords.add(word);
+      }
     }
-
-    if (map.size() == 0) return new HashMap<>();
+    if (filteredWords.size() == 0) return new HashMap<>();
 
     BitSet checker;
-    if (query.equals("AND")) checker = andAllIndex(map);
+    if (query.equals("AND")) checker = andAllIndex(words);
     else if (query.equals("OR")) {
-      checker = orAllIndex(map);
+      checker = orAllIndex(words);
     } else {
       throw new RuntimeException("No match query method");
     }
@@ -1004,196 +1001,22 @@ public class InvertedIndex implements AutoCloseable {
     }
   }
 
-
-  public Map<String, Document> search_phrase(ArrayList<String> words) {
-    if (words.size() == 0) return new HashMap<>();
-
-    // read header
-    this.readHeader();
-    Map<String, ArrayList<Integer>> map;
-    Map<String, ArrayList<Integer>> map_positional_ptr;
-    Map<String,Map<Integer,ArrayList<Integer>>> final_map=new HashMap<>();//docid,positionallist
-    ArrayList<Integer> docIdx = new ArrayList<>();
-
-    try {
-      map = new HashMap<>(this.readWordsDocIdx(words));
-      map_positional_ptr = new HashMap<>(this.readWords_positional(words));
-
-    } catch (Exception e) {
-      return new HashMap<>();
-    }
-    if (map.size() == 0||map_positional_ptr.size()==0) return new HashMap<>();
-    //build a map for search (the word has the same order as the input)
-    for (Map.Entry<String, ArrayList<Integer>> entry : map.entrySet()) {
-      String temp_key=entry.getKey();
-      ArrayList<Integer> temp_list=entry.getValue();
-      ArrayList<Integer> temp_position_ptr=map_positional_ptr.get(temp_key);
-      Map<Integer,ArrayList<Integer>> temp_map=new HashMap<>();
-      for(int j=0;j<temp_list.size();j++){
-        ArrayList<Integer> temp_position_list=readPositionList(temp_position_ptr.get(j));
-        temp_map.put(temp_list.get(j),temp_position_list);
-
-      }
-      final_map.put(temp_key,temp_map);
-    }
-
-    //add all the files related to first word
-    Map<Integer,ArrayList<Integer>> xx=final_map.get(words.get(0));
-    for (Map.Entry<Integer,ArrayList<Integer>> entry : xx.entrySet()) {
-      docIdx.add(entry.getKey());
-    }
-    if(words.size()==1){
-      try {
-        return this.readDocuments(docIdx);
-      }
-      catch (Exception e){
-        return new HashMap<>();
-      }
-    }
-
-    /*for(int i=1;i<words.size();i++){
-      Map<Integer,ArrayList<Integer>> yy=final_map.get(words.get(i));
-      for (Map.Entry<Integer,ArrayList<Integer>> entry : xx.entrySet()) {
-        Integer doc=entry.getKey();
-        if(yy.containsKey(entry.getKey())){
-          ArrayList<Integer> list_main=xx.get(entry.getKey());
-          ArrayList<Integer> list_new=yy.get(entry.getKey());
-          boolean flag=false;
-          for(int j=0;j<list_main.size();j++){
-            for(int l=0;l<list_new.size();l++) {
-              if((list_main.get(j)+i)==list_new.get(l)) {
-                flag=true;
-                break;
-              }
-            }
-            if(flag) break;
-          }
-          if(!flag){
-            int index=docIdx.indexOf(doc);
-            if(index>=0)
-              docIdx.remove(index);
-
-          }//no such file
-        }
-        else{
-          //no such file
-          int index=docIdx.indexOf(doc);
-          if(index>=0)
-            docIdx.remove(index);
-        }
-      }
-
-
-
-    }*/
-
-    for (Map.Entry<Integer,ArrayList<Integer>> entry : xx.entrySet()) {
-      boolean flag=true;
-      int id=entry.getKey();
-      ArrayList<Integer> getlist=entry.getValue();
-      for(int i=0;i<getlist.size();i++){
-        int counter=0;
-        int positional=getlist.get(i);
-        for(int j=1;j<words.size();j++) {
-          Map<Integer,ArrayList<Integer>> yy=final_map.get(words.get(j));
-          if(yy.containsKey(id)){
-            ArrayList<Integer> list_new=yy.get(id);
-            for(int l=0;l<list_new.size();l++){
-              if(list_new.get(l)==positional+j){
-                //todo yes //break
-                counter++;
-                break;
-              }
-            }
-          }
-          else{
-            flag=false;
-            int index=docIdx.indexOf(id);
-            if(index>=0)
-              docIdx.remove(index);
-            break;
-          }
-          if(!flag) break;
-        }
-
-        if(counter==words.size()-1){
-          break;
-        }
-        if(i==getlist.size()-1){
-          int index=docIdx.indexOf(id);
-          if(index>=0)
-            docIdx.remove(index);
-          break;
-        }
-
-        if(!flag) break;
-      }
-    }
-    //docIdx.clear();
-    //for(Map.Entry<Integer,ArrayList<Integer>> entry : xx.entrySet())
-      //docIdx.add(entry.getKey());
-
-    try {
-      return this.readDocuments(docIdx);
-    } catch (Exception e) {
-      System.out.println("read docs idx: " + Arrays.toString(docIdx.toArray()) + " failed");
-      return new HashMap<>();
-    } finally {
-      this.close();
-    }
-  }
-
-
-  /**
-   * parallel reading the document indexes from the file
-   *
-   * @param words
-   * @return
-   */
-  public Map<String, ArrayList<Integer>> readWordsDocIdx(ArrayList<String> words) {
-    // System.out.println("Search words: " + Arrays.toString(words.toArray()));
-    Map<String, ArrayList<Integer>> synchronizedMap = Collections.synchronizedMap(new HashMap<>());
-
-    //    ExecutorService exec = Executors.newFixedThreadPool(2);
-
-    for (String word : words) {
-      if (this.wordsDicEntries.containsKey(word)) {
-        final InvertedIndexHeaderEntry entry = this.wordsDicEntries.get(word);
-        synchronizedMap.put(entry.getKey(), this.readDocIds(entry));
-
-      } else {
-        //        synchronized (synchronizedMap) {
-        //          synchronizedMap.put(word, new ArrayList<>());
-        //        }
-        synchronizedMap.put(word, new ArrayList<>());
-      }
-    }
-    //    exec.shutdown();
-    //    try {
-    //      while (!exec.awaitTermination(1L, TimeUnit.MINUTES)) {
-    //        System.out.println("Not yet. Still waiting for termination");
-    //      }
-    //
-    //    } catch (InterruptedException e) {
-    //
-    //    }
-    return synchronizedMap;
-  }
-
   /**
    * do or operation to all inverted list
    *
    * @param map
    * @return
    */
-  private BitSet andAllIndex(Map<String, ArrayList<Integer>> map) {
+  private BitSet andAllIndex(ArrayList<String> words) {
     int size = getDocNumFromDb();
     BitSet checker = new BitSet(size);
     checker.set(0, size, true);
 
-    for (Map.Entry<String, ArrayList<Integer>> entry : map.entrySet()) {
+    for (String word : words) {
+      List<Integer> docIdx = this.readWordDocIdx(word);
+//      if (docIdx.size() == 0) continue;
       BitSet tmpChecker = new BitSet(size);
-      for (int idx : entry.getValue()) {
+      for (int idx : docIdx) {
         tmpChecker.set(idx);
       }
       checker.and(tmpChecker);
@@ -1209,12 +1032,29 @@ public class InvertedIndex implements AutoCloseable {
     return (int) this.docStore.size();
   }
 
-  private BitSet orAllIndex(Map<String, ArrayList<Integer>> map) {
+  /**
+   * parallel reading the document indexes from the file
+   *
+   * @param words
+   * @return
+   */
+  public ArrayList<Integer> readWordDocIdx(String word) {
+    if (this.wordsDicEntries.containsKey(word)) {
+      final InvertedIndexHeaderEntry entry = this.wordsDicEntries.get(word);
+      return this.readDocIds(entry);
+    } else {
+      return new ArrayList<>();
+    }
+  }
+
+  private BitSet orAllIndex(ArrayList<String> words) {
     int size = getDocNumFromDb();
     BitSet checker = new BitSet(size);
-    for (Map.Entry<String, ArrayList<Integer>> entry : map.entrySet()) {
+    for (String word : words) {
+      List<Integer> docIdx = this.readWordDocIdx(word);
+//      if (docIdx.size() == 0) continue;
       BitSet tmpChecker = new BitSet(size);
-      for (int idx : entry.getValue()) {
+      for (int idx : docIdx) {
         tmpChecker.set(idx);
       }
       checker.or(tmpChecker);
@@ -1223,6 +1063,123 @@ public class InvertedIndex implements AutoCloseable {
       checker.set(i, false);
     }
     return checker;
+  }
+
+  public Map<String, Document> searchPhrase(List<String> words) {
+    if (words.size() == 0) return new HashMap<>();
+
+    // read header
+    this.readHeader();
+    Map<String, ArrayList<Integer>> map;
+    Map<String, ArrayList<Integer>> map_positional_ptr;
+    Map<String, Map<Integer, ArrayList<Integer>>> final_map =
+        new HashMap<>(); // docid,positionallist
+    ArrayList<Integer> docIdx = new ArrayList<>();
+
+    try {
+      map = this.readWordsDocIdx(words);
+      map_positional_ptr = this.readWords_positional(words);
+
+    } catch (Exception e) {
+      return new HashMap<>();
+    }
+    if (map.size() == 0 || map_positional_ptr.size() == 0) return new HashMap<>();
+    // build a map for search (the word has the same order as the input)
+    for (Map.Entry<String, ArrayList<Integer>> entry : map.entrySet()) {
+      String temp_key = entry.getKey();
+      ArrayList<Integer> temp_list = entry.getValue();
+      ArrayList<Integer> temp_position_ptr = map_positional_ptr.get(temp_key);
+      Map<Integer, ArrayList<Integer>> temp_map = new HashMap<>();
+      for (int j = 0; j < temp_list.size(); j++) {
+        ArrayList<Integer> temp_position_list = readPositionList(temp_position_ptr.get(j));
+        temp_map.put(temp_list.get(j), temp_position_list);
+      }
+      final_map.put(temp_key, temp_map);
+    }
+
+    // add all the files related to first word
+    Map<Integer, ArrayList<Integer>> xx = final_map.get(words.get(0));
+    for (Map.Entry<Integer, ArrayList<Integer>> entry : xx.entrySet()) {
+      docIdx.add(entry.getKey());
+    }
+    if (words.size() == 1) {
+      try {
+        return this.readDocuments(docIdx);
+      } catch (Exception e) {
+        return new HashMap<>();
+      }
+    }
+
+    for (Map.Entry<Integer, ArrayList<Integer>> entry : xx.entrySet()) {
+      boolean flag = true;
+      int id = entry.getKey();
+      ArrayList<Integer> getlist = entry.getValue();
+      for (int i = 0; i < getlist.size(); i++) {
+        int counter = 0;
+        int positional = getlist.get(i);
+        for (int j = 1; j < words.size(); j++) {
+          Map<Integer, ArrayList<Integer>> yy = final_map.get(words.get(j));
+          if (yy.containsKey(id)) {
+            ArrayList<Integer> list_new = yy.get(id);
+            for (int l = 0; l < list_new.size(); l++) {
+              if (list_new.get(l) == positional + j) {
+                counter++;
+                break;
+              }
+            }
+          } else {
+            flag = false;
+            int index = docIdx.indexOf(id);
+            if (index >= 0) docIdx.remove(index);
+            break;
+          }
+          if (!flag) break;
+        }
+
+        if (counter == words.size() - 1) {
+          break;
+        }
+        if (i == getlist.size() - 1) {
+          int index = docIdx.indexOf(id);
+          if (index >= 0) docIdx.remove(index);
+          break;
+        }
+
+        if (!flag) break;
+      }
+    }
+    // docIdx.clear();
+    // for(Map.Entry<Integer,ArrayList<Integer>> entry : xx.entrySet())
+    // docIdx.add(entry.getKey());
+
+    try {
+      return this.readDocuments(docIdx);
+    } catch (Exception e) {
+      System.out.println("read docs idx: " + Arrays.toString(docIdx.toArray()) + " failed");
+      return new HashMap<>();
+    } finally {
+      this.close();
+    }
+  }
+
+  /**
+   * parallel reading the document indexes from the file
+   *
+   * @param words
+   * @return
+   */
+  public Map<String, ArrayList<Integer>> readWordsDocIdx(List<String> words) {
+    Map<String, ArrayList<Integer>> synchronizedMap = Collections.synchronizedMap(new HashMap<>());
+    for (String word : words) {
+      if (this.wordsDicEntries.containsKey(word)) {
+        final InvertedIndexHeaderEntry entry = this.wordsDicEntries.get(word);
+        synchronizedMap.put(entry.getKey(), this.readDocIds(entry));
+
+      } else {
+        synchronizedMap.put(word, new ArrayList<>());
+      }
+    }
+    return synchronizedMap;
   }
 
   private Map<String, Document> readDocuments(ArrayList<Integer> idex) throws InterruptedException {
@@ -1249,8 +1206,6 @@ public class InvertedIndex implements AutoCloseable {
     return synchronizedMap;
   }
 
-
-
   private ArrayList<Integer> readPositionList(Integer ptr) {
     ByteOutputStream bytesteam = readRawPositionList(ptr);
     ArrayList<Integer> positionList = new ArrayList<>();
@@ -1261,7 +1216,7 @@ public class InvertedIndex implements AutoCloseable {
     return positionList;
   }
 
-  public Map<String, ArrayList<Integer>> readWords_positional(ArrayList<String> words) {
+  public Map<String, ArrayList<Integer>> readWords_positional(List<String> words) {
     Map<String, ArrayList<Integer>> synchronizedMap = Collections.synchronizedMap(new HashMap<>());
     for (String word : words) {
       if (this.wordsDicEntries.containsKey(word)) {
