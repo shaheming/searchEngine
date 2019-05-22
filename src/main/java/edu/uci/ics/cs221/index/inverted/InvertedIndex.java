@@ -1004,7 +1004,7 @@ public class InvertedIndex implements AutoCloseable {
   /**
    * do or operation to all inverted list
    *
-   * @param map
+   * @param words query words
    * @return
    */
   private BitSet andAllIndex(ArrayList<String> words) {
@@ -1035,7 +1035,7 @@ public class InvertedIndex implements AutoCloseable {
   /**
    * parallel reading the document indexes from the file
    *
-   * @param words
+   * @param word
    * @return
    */
   public ArrayList<Integer> readWordDocIdx(String word) {
