@@ -1004,6 +1004,103 @@ public class InvertedIndex implements AutoCloseable {
     }
   }
 
+
+  public Map<String, Document> search_phrase(ArrayList<String> words) {
+    if (words.size() == 0) return new HashMap<>();
+
+    // read header
+    this.readHeader();
+    Map<String, ArrayList<Integer>> map;
+    Map<String, ArrayList<Integer>> map_positional_ptr;
+    Map<String,Map<Integer,ArrayList<Integer>>> final_map=new HashMap<>();//docid,positionallist
+    ArrayList<Integer> docIdx = new ArrayList<>();
+
+    try {
+      map = new HashMap<>(this.readWordsDocIdx(words));
+      map_positional_ptr = new HashMap<>(this.readWords_positional(words));
+
+    } catch (Exception e) {
+      return new HashMap<>();
+    }
+    if (map.size() == 0||map_positional_ptr.size()==0) return new HashMap<>();
+    //build a map for search (the word has the same order as the input)
+    for (Map.Entry<String, ArrayList<Integer>> entry : map.entrySet()) {
+      String temp_key=entry.getKey();
+      ArrayList<Integer> temp_list=entry.getValue();
+      ArrayList<Integer> temp_position_ptr=map_positional_ptr.get(temp_key);
+      Map<Integer,ArrayList<Integer>> temp_map=new HashMap<>();
+      for(int j=0;j<temp_list.size();j++){
+        ArrayList<Integer> temp_position_list=readPositionList(temp_position_ptr.get(j));
+        temp_map.put(temp_list.get(j),temp_position_list);
+
+      }
+      final_map.put(temp_key,temp_map);
+    }
+    System.out.println("final size"+final_map.size());
+
+    //add all the files related to first word
+    Map<Integer,ArrayList<Integer>> xx=final_map.get(words.get(0));
+    for (Map.Entry<Integer,ArrayList<Integer>> entry : xx.entrySet()) {
+      docIdx.add(entry.getKey());
+    }
+    if(words.size()==1){
+      try {
+        return this.readDocuments(docIdx);
+      }
+      catch (Exception e){
+        return new HashMap<>();
+      }
+    }
+
+    for(int i=1;i<words.size();i++){
+      Map<Integer,ArrayList<Integer>> yy=final_map.get(words.get(i));
+      System.out.println("size"+yy.size());
+      for (Map.Entry<Integer,ArrayList<Integer>> entry : xx.entrySet()) {
+        Integer doc=entry.getKey();
+        if(yy.containsKey(entry.getKey())){
+          System.out.println("");
+          ArrayList<Integer> list_main=xx.get(entry.getKey());
+          ArrayList<Integer> list_new=yy.get(entry.getKey());
+          boolean flag=false;
+          for(int j=0;j<list_main.size();j++){
+            for(int l=0;l<list_new.size();l++) {
+              if((list_main.get(j)+i)==list_new.get(l)) {
+                flag=true;
+                break;
+              }
+            }
+            if(flag) break;
+          }
+          if(!flag){
+            int index=docIdx.indexOf(doc);
+            if(index>=0)
+              docIdx.remove(index);
+
+          }//no such file
+        }
+        else{
+          //no such file
+          int index=docIdx.indexOf(doc);
+          if(index>=0)
+            docIdx.remove(index);
+        }
+      }
+
+
+
+    }
+
+    try {
+      return this.readDocuments(docIdx);
+    } catch (Exception e) {
+      System.out.println("read docs idx: " + Arrays.toString(docIdx.toArray()) + " failed");
+      return new HashMap<>();
+    } finally {
+      this.close();
+    }
+  }
+
+
   /**
    * parallel reading the document indexes from the file
    *
@@ -1109,92 +1206,7 @@ public class InvertedIndex implements AutoCloseable {
     return synchronizedMap;
   }
 
-  public Map<String, Document> search_phrase(ArrayList<String> words) {
-    if (words.size() == 0) return new HashMap<>();
 
-    // read header
-    this.readHeader();
-    Map<String, ArrayList<Integer>> map;
-    Map<String, ArrayList<Integer>> map_positional_ptr;
-    Map<String, Map<Integer, ArrayList<Integer>>> final_map =
-        new HashMap<>(); // docid,positionallist
-    ArrayList<Integer> docIdx = new ArrayList<>();
-
-    try {
-      map = new HashMap<>(this.readWordsDocIdx(words));
-      map_positional_ptr = new HashMap<>(this.readWords_positional(words));
-
-    } catch (Exception e) {
-      return new HashMap<>();
-    }
-    if (map.size() == 0 || map_positional_ptr.size() == 0) return new HashMap<>();
-    // build a map for search (the word has the same order as the input)
-    for (Map.Entry<String, ArrayList<Integer>> entry : map.entrySet()) {
-      String temp_key = entry.getKey();
-      ArrayList<Integer> temp_list = entry.getValue();
-      ArrayList<Integer> temp_position_ptr = map_positional_ptr.get(temp_key);
-      Map<Integer, ArrayList<Integer>> temp_map = new HashMap<>();
-      for (int j = 0; j < temp_list.size(); j++) {
-        ArrayList<Integer> temp_position_list = readPositionList(temp_position_ptr.get(j));
-        temp_map.put(temp_list.get(j), temp_position_list);
-      }
-      final_map.put(temp_key, temp_map);
-    }
-    System.out.println("final size" + final_map.size());
-
-    // add all the files related to first word
-    Map<Integer, ArrayList<Integer>> xx = final_map.get(words.get(0));
-    for (Map.Entry<Integer, ArrayList<Integer>> entry : xx.entrySet()) {
-      docIdx.add(entry.getKey());
-    }
-    if (words.size() == 1) {
-      try {
-        return this.readDocuments(docIdx);
-      } catch (Exception e) {
-        return new HashMap<>();
-      }
-    }
-
-    for (int i = 1; i < words.size(); i++) {
-      Map<Integer, ArrayList<Integer>> yy = final_map.get(words.get(i));
-      System.out.println("size" + yy.size());
-      for (Map.Entry<Integer, ArrayList<Integer>> entry : yy.entrySet()) {
-        Integer doc = entry.getKey();
-        System.out.println(doc + " word:" + words.get(i));
-        if (xx.containsKey(entry.getKey())) {
-          ArrayList<Integer> list_main = xx.get(entry.getKey());
-          ArrayList<Integer> list_new = yy.get(entry.getKey());
-          boolean flag = false;
-          for (int j = 0; j < list_main.size(); j++) {
-            for (int l = 0; l < list_new.size(); l++) {
-              if ((list_main.get(j) + i) == list_new.get(l)) {
-                flag = true;
-                break;
-              }
-            }
-            if (flag) break;
-          }
-          if (!flag) {
-            int index = docIdx.indexOf(doc);
-            if (index >= 0) docIdx.remove(index);
-          } // no such file
-        } else {
-          // no such file
-          int index = docIdx.indexOf(doc);
-          if (index >= 0) docIdx.remove(index);
-        }
-      }
-    }
-
-    try {
-      return this.readDocuments(docIdx);
-    } catch (Exception e) {
-      System.out.println("read docs idx: " + Arrays.toString(docIdx.toArray()) + " failed");
-      return new HashMap<>();
-    } finally {
-      this.close();
-    }
-  }
 
   private ArrayList<Integer> readPositionList(Integer ptr) {
     ByteOutputStream bytesteam = readRawPositionList(ptr);
