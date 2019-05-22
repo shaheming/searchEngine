@@ -1067,12 +1067,10 @@ public class InvertedIndex implements AutoCloseable {
 
   public Map<String, Document> searchPhrase(List<String> words) {
     if (words.size() == 0) return new HashMap<>();
-
     // read header
     this.readHeader();
     Map<String, ArrayList<Integer>> map;
     Map<String, ArrayList<Integer>> map_positional_ptr;
-    //Map<String, Map<Integer, ArrayList<Integer>>> final_map = new HashMap<>(); // docid,positionallist
     ArrayList<Integer> docIdx = new ArrayList<>();
 
     try {
@@ -1083,30 +1081,11 @@ public class InvertedIndex implements AutoCloseable {
       return new HashMap<>();
     }
     if (map.size() == 0 || map_positional_ptr.size() == 0) return new HashMap<>();
-    // build a map for search (the word has the same order as the input)
-   /* for (Map.Entry<String, ArrayList<Integer>> entry : map.entrySet()) {
-      String temp_key = entry.getKey();
-      ArrayList<Integer> temp_list = entry.getValue();
-      ArrayList<Integer> temp_position_ptr = map_positional_ptr.get(temp_key);
-      Map<Integer, ArrayList<Integer>> temp_map = new HashMap<>();
-      for (int j = 0; j < temp_list.size(); j++) {
-        ArrayList<Integer> temp_position_list = readPositionList(temp_position_ptr.get(j));
-        temp_map.put(temp_list.get(j), temp_position_list);
-      }
-      final_map.put(temp_key, temp_map);
-    }*/
-
-    // add all the files related to first word
-    //Map<Integer, ArrayList<Integer>> xx = final_map.get(words.get(0));
-    //for (Map.Entry<Integer, ArrayList<Integer>> entry : xx.entrySet()) {
-      //docIdx.add(entry.getKey());
-    //}
 
     ArrayList<Integer> temp_ilist=map.get(words.get(0));
     for (int i=0;i <temp_ilist.size();i++) {
       docIdx.add(temp_ilist.get(i));
     }
-
     if (words.size() == 1) {
       try {
         return this.readDocuments(docIdx);
@@ -1159,9 +1138,7 @@ public class InvertedIndex implements AutoCloseable {
         if (!flag) break;
       }
     }
-    // docIdx.clear();
-    // for(Map.Entry<Integer,ArrayList<Integer>> entry : xx.entrySet())
-    // docIdx.add(entry.getKey());
+    
     ArrayList<Integer> final_list=new ArrayList<>();
     for(int i=0;i<docIdx.size();i++){
       if(docIdx.get(i)!=-1)
