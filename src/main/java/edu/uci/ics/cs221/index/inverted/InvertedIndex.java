@@ -1049,10 +1049,10 @@ public class InvertedIndex implements AutoCloseable {
     for(int i=1;i<words.size();i++){
       Map<Integer,ArrayList<Integer>> yy=final_map.get(words.get(i));
       System.out.println("size"+yy.size());
-      for (Map.Entry<Integer,ArrayList<Integer>> entry : yy.entrySet()) {
+      for (Map.Entry<Integer,ArrayList<Integer>> entry : xx.entrySet()) {
         Integer doc=entry.getKey();
-        System.out.println(doc+" word:"+words.get(i));
-        if(xx.containsKey(entry.getKey())){
+        if(yy.containsKey(entry.getKey())){
+          System.out.println("");
           ArrayList<Integer> list_main=xx.get(entry.getKey());
           ArrayList<Integer> list_new=yy.get(entry.getKey());
           boolean flag=false;
