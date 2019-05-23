@@ -1145,6 +1145,7 @@ public class InvertedIndex implements AutoCloseable {
           ArrayList<Integer> nextWordPositionList = map.get(words.get(j));
           int temp_index = Collections.binarySearch(nextWordPositionList, id);
           if (temp_index >= 0) {
+
             ArrayList<Integer> list_new = readPositionList(ptr_list_temp.get(temp_index));
             for (int l = 0; l < list_new.size(); l++) {
               if (list_new.get(l) == positional + j) {
@@ -1155,6 +1156,7 @@ public class InvertedIndex implements AutoCloseable {
           } else {
             flag = false;
             docIdx.set(num, -1);
+
             break;
           }
           if (!flag) break;
