@@ -59,6 +59,42 @@ class LRUPageCache {
   }
 }
 
+class LRUPositionListCache {
+  private Integer capacity = 5;
+  private Map<Integer, SimpleEntry<Integer, ArrayList<Integer>>> map = new HashMap<>();
+  private LinkedList<SimpleEntry<Integer, ArrayList<Integer>>> list = new LinkedList<>();
+
+  LRUPositionListCache() {}
+
+  LRUPositionListCache(Integer c) {
+    this.capacity = c;
+  }
+
+  public void put(Integer ptr, ArrayList<Integer> positionList) {
+    if (list.size() > capacity) {
+      SimpleEntry<Integer, ArrayList<Integer>> entry = list.removeFirst();
+      this.map.remove(entry.getKey());
+    }
+    SimpleEntry<Integer, ArrayList<Integer>> entry = new SimpleEntry<>(ptr, positionList);
+    list.add(entry);
+    map.put(ptr, entry);
+  }
+
+  public ArrayList<Integer> get(Integer page_num) {
+    if (map.containsKey(page_num)) {
+      SimpleEntry<Integer, ArrayList<Integer>> entry = map.get(page_num);
+      list.remove(entry);
+      entry.getValue().clear();
+      list.add(entry);
+      return entry.getValue();
+    } else return null;
+  }
+
+  public void clear() {
+    this.map.clear();
+    this.list.clear();
+  }
+}
 /** Note the write buffer should class flush after finish all writing behaviors */
 class PageWriteBuffer {
   private ByteBuffer buffer1 = ByteBuffer.allocate(PageFileChannel.PAGE_SIZE + 100);
@@ -412,6 +448,7 @@ public class InvertedIndex implements AutoCloseable {
   private Compressor compressor = new DeltaVarLenCompressor();
   private PageReadBuffer postingListReadBuffer = null;
   private PageReadBuffer positionListReadBuffer = null;
+  private LRUPositionListCache positionListCache = null;
   private Table<String, Integer, List<Integer>> position = TreeBasedTable.create();
   private Integer searchOrder = 0;
   /** @param workPath the path of work dir */
@@ -667,6 +704,7 @@ public class InvertedIndex implements AutoCloseable {
     if (!this.postingListReadBuffer.isOpen()) {
       this.postingListReadBuffer.openChannel();
     }
+
     this.postingListReadBuffer.setPosition(entry.getDocIdListPtr());
     int counter = this.postingListReadBuffer.readListLen();
     this.postingListReadBuffer.movePtrNBytes(counter);
@@ -1014,7 +1052,7 @@ public class InvertedIndex implements AutoCloseable {
 
     for (String word : words) {
       List<Integer> docIdx = this.readWordDocIdx(word);
-//      if (docIdx.size() == 0) continue;
+      //      if (docIdx.size() == 0) continue;
       BitSet tmpChecker = new BitSet(size);
       for (int idx : docIdx) {
         tmpChecker.set(idx);
@@ -1052,7 +1090,7 @@ public class InvertedIndex implements AutoCloseable {
     BitSet checker = new BitSet(size);
     for (String word : words) {
       List<Integer> docIdx = this.readWordDocIdx(word);
-//      if (docIdx.size() == 0) continue;
+      //      if (docIdx.size() == 0) continue;
       BitSet tmpChecker = new BitSet(size);
       for (int idx : docIdx) {
         tmpChecker.set(idx);
@@ -1082,8 +1120,8 @@ public class InvertedIndex implements AutoCloseable {
     }
     if (map.size() == 0 || map_positional_ptr.size() == 0) return new HashMap<>();
 
-    ArrayList<Integer> temp_ilist=map.get(words.get(0));
-    for (int i=0;i <temp_ilist.size();i++) {
+    ArrayList<Integer> temp_ilist = map.get(words.get(0));
+    for (int i = 0; i < temp_ilist.size(); i++) {
       docIdx.add(temp_ilist.get(i));
     }
     if (words.size() == 1) {
@@ -1093,20 +1131,21 @@ public class InvertedIndex implements AutoCloseable {
         return new HashMap<>();
       }
     }
-    ArrayList<Integer> ptr_list=map_positional_ptr.get(words.get(0));
-    for (int num=0;num<docIdx.size();num++) {
-      if(docIdx.get(num)==-1) continue;
+    ArrayList<Integer> ptr_list = map_positional_ptr.get(words.get(0));
+    for (int num = 0; num < docIdx.size(); num++) {
+      if (docIdx.get(num) == -1) continue;
       boolean flag = true;
-      Integer id = docIdx.get(num);//document id
-      ArrayList<Integer> getlist = readPositionList(ptr_list.get(num));//postional list
+      Integer id = docIdx.get(num); // document id
+      ArrayList<Integer> getlist = readPositionList(ptr_list.get(num)); // postional list
       for (int i = 0; i < getlist.size(); i++) {
         int counter = 0;
         int positional = getlist.get(i);
         for (int j = 1; j < words.size(); j++) {
-          ArrayList<Integer> ptr_list_temp=map_positional_ptr.get(words.get(j));
-          ArrayList<Integer> yy = map.get(words.get(j));
-          if (yy.indexOf(id)>=0) {
-            int temp_index=yy.indexOf(id);
+          ArrayList<Integer> ptr_list_temp = map_positional_ptr.get(words.get(j));
+          ArrayList<Integer> nextWordPositionList = map.get(words.get(j));
+          int temp_index = Collections.binarySearch(nextWordPositionList, id);
+          if (temp_index >= 0) {
+
             ArrayList<Integer> list_new = readPositionList(ptr_list_temp.get(temp_index));
             for (int l = 0; l < list_new.size(); l++) {
               if (list_new.get(l) == positional + j) {
@@ -1114,12 +1153,10 @@ public class InvertedIndex implements AutoCloseable {
                 break;
               }
             }
-          }
-          else {
+          } else {
             flag = false;
-            int index = docIdx.indexOf(id);
-            if (index >= 0)
-              docIdx.set(index,-1);
+            docIdx.set(num, -1);
+
             break;
           }
           if (!flag) break;
@@ -1129,9 +1166,7 @@ public class InvertedIndex implements AutoCloseable {
           break;
         }
         if (i == getlist.size() - 1) {
-          int index = docIdx.indexOf(id);
-          if (index >= 0)
-            docIdx.set(index,-1);
+          docIdx.set(num, -1);
           break;
         }
 
@@ -1139,10 +1174,9 @@ public class InvertedIndex implements AutoCloseable {
       }
     }
 
-    ArrayList<Integer> final_list=new ArrayList<>();
-    for(int i=0;i<docIdx.size();i++){
-      if(docIdx.get(i)!=-1)
-        final_list.add(docIdx.get(i));
+    ArrayList<Integer> final_list = new ArrayList<>();
+    for (int i = 0; i < docIdx.size(); i++) {
+      if (docIdx.get(i) != -1) final_list.add(docIdx.get(i));
     }
 
     try {
@@ -1200,12 +1234,20 @@ public class InvertedIndex implements AutoCloseable {
   }
 
   private ArrayList<Integer> readPositionList(Integer ptr) {
+    if (this.positionListCache == null) {
+      positionListCache = new LRUPositionListCache();
+    }
+    ArrayList<Integer> positionList = positionListCache.get(ptr);
+    if (positionList != null) {
+      return positionList;
+    }
     ByteOutputStream bytesteam = readRawPositionList(ptr);
-    ArrayList<Integer> positionList = new ArrayList<>();
+    positionList = new ArrayList<>();
     if (bytesteam.getCount() > 0) {
       List<Integer> ptrs = compressor.decode(bytesteam.getBytes(), 0, bytesteam.getCount());
       positionList.addAll(ptrs);
     }
+    positionListCache.put(ptr, positionList);
     return positionList;
   }
 
