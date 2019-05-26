@@ -557,6 +557,33 @@ public class InvertedIndexManager {
     this.segmentMetaData.clear();
     return docs.iterator();
   }
+  /**
+   * Performs top-K ranked search using TF-IDF. Returns an iterator that returns the K documents
+   * with highest TF-IDF scores.
+   *
+   * <p>Unlike Boolean Query and Phrase Query where order of the documents doesn't matter, for
+   * ranked search, order of the document returned by the iterator matters.
+   *
+   * @param keywords, a list of keywords in the query
+   * @param topK, number of top documents weighted by TF-IDF
+   * @return a iterator of ordered documents matching the query
+   */
+  public Iterator<Document> searchTfIdf(List<String> keywords, int topK) {
+    throw new UnsupportedOperationException();
+  }
+
+  /** Returns the total number of documents within the given segment. */
+  public int getNumDocuments(int segmentNum) {
+    throw new UnsupportedOperationException();
+  }
+
+  /**
+   * Returns the number of documents containing the token within the given segment. The token should
+   * be already analyzed by the analyzer. The analyzer shouldn't be applied again.
+   */
+  public int getDocumentFrequency(int segmentNum, String token) {
+    throw new UnsupportedOperationException();
+  }
 
   /**
    * Deletes all documents in all disk segments of the inverted index that match the query.
