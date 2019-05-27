@@ -39,69 +39,52 @@ public class Team5getDocumentFrequencyTest {
         invertedList.flush();
     }
 
-    // test if multiple keywords work or not. And we set 5 as a threshold for write counter and read counter,
-    // because I think the number will increase when we call the flush() function and we dont know the execution order
-    // of test cases, so we set them all to 5.
+    // test multiple keywords with multiple segments
     @Test
     public void Test1() throws Exception {
         String words="cat dog Toy Dot";
         List<String> new_words=analyzer.analyze(words);
-        for(int i=0;i<new_words.size();i++){
-            invertedList.getDocumentFrequency()
-            assertEquals(6, counter);
-        }
+        int result=invertedList.getDocumentFrequency(0,new_words.get(0));
+        assertEquals(3,result);
+        result=invertedList.getDocumentFrequency(1,new_words.get(0));
+        assertEquals(2,result);
+        result=invertedList.getDocumentFrequency(2,new_words.get(0));
+        assertEquals(1,result);
 
+        result=invertedList.getDocumentFrequency(0,new_words.get(1));
+        assertEquals(1,result);
+        result=invertedList.getDocumentFrequency(1,new_words.get(1));
+        assertEquals(2,result);
+        result=invertedList.getDocumentFrequency(2,new_words.get(1));
+        assertEquals(1,result);
 
+        result=invertedList.getDocumentFrequency(0,new_words.get(2));
+        assertEquals(2,result);
+        result=invertedList.getDocumentFrequency(1,new_words.get(2));
+        assertEquals(1,result);
+        result=invertedList.getDocumentFrequency(2,new_words.get(2));
+        assertEquals(0,result);
+        
+        result=invertedList.getDocumentFrequency(0,new_words.get(3));
+        assertEquals(2,result);
+        result=invertedList.getDocumentFrequency(1,new_words.get(3));
+        assertEquals(0,result);
+        result=invertedList.getDocumentFrequency(2,new_words.get(3));
+        assertEquals(0,result);
 
     }
-
-    //test if single key words works or not
-    @Test
-    public void Test2() throws Exception {
-        List<String> words = new ArrayList<>();
-        words.add("dog");
-
-        Iterator<Document> iterator = invertedList.searchOrQuery(words);
-        int counter = 0;
-        while (iterator.hasNext()) {
-            String text = iterator.next().getText();
-            assertEquals(true, text.toLowerCase().contains("dog"));
-            counter++;
-
-        }
-        assertEquals(4, counter);
-        assertTrue(PageFileChannel.readCounter >= 5 && PageFileChannel.writeCounter >= 5);
-        words.clear();
-
-    }
-
     //test the case that the key word does not match any file
     @Test
-    public void Test3() throws Exception {
-        List<String> words = new ArrayList<>();
-        words.add("sdasjdlslsah");
-        words.add("*7&");
-        Iterator<Document> iterator = invertedList.searchOrQuery(words);
-        int counter = 0;
-        while (iterator.hasNext()) {
-
-            String text = iterator.next().getText();
-            assertEquals(true, text.contains("sdasjdlslsah") || text.contains("*7&"));
-            counter++;
-
+    public void Test2() throws Exception {
+        String words="sdasjdlslsah";
+        List<String> new_words=analyzer.analyze(words);
+        int n=invertedList.getNumSegments();
+        for(int i=0;i<new_words.size();i++){
+            for(int j=0;j<n;j++) {
+                int result=invertedList.getDocumentFrequency(j,new_words.get(i));
+                assertEquals(0,result);
+            }
         }
-        assertEquals(0, counter);
-        assertTrue(PageFileChannel.readCounter >= 5 && PageFileChannel.writeCounter >= 5);
-        words.clear();
-
-    }
-
-    //test empty query list.
-    @Test
-    public void Test5() {
-        List<String> words = new ArrayList<>();
-        Iterator<Document> iterator = invertedList.searchOrQuery(words);
-        assertFalse(iterator.hasNext());
     }
 
     @After
