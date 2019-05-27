@@ -59,7 +59,7 @@ public class Team5getDocumentFrequencyTest {
         result=invertedList.getDocumentFrequency(0,new_words.get(2));
         assertEquals(2,result);
         result=invertedList.getDocumentFrequency(1,new_words.get(2));
-        assertEquals(1,result);
+        assertEquals(2,result);
         result=invertedList.getDocumentFrequency(2,new_words.get(2));
         assertEquals(0,result);
 
