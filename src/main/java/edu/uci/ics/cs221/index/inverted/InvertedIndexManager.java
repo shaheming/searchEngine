@@ -1,10 +1,10 @@
 package edu.uci.ics.cs221.index.inverted;
-// todo
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.HashBasedTable;
 import edu.uci.ics.cs221.analysis.Analyzer;
 import edu.uci.ics.cs221.storage.Document;
+import javafx.util.Pair;
 
 import java.io.BufferedWriter;
 import java.io.FileWriter;
@@ -17,6 +17,7 @@ import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 class SegmentEntry {
   private String name;
@@ -63,7 +64,8 @@ class SegmentEntry {
   InvertedIndex openInvertedList(String workPath, Compressor compressor) {
     return InvertedIndex.openInvertList(workPath, this.getName(), this.headerLen, this.headerNum)
         .setRemovedDocIdx(this.getRemovedDocsIdx())
-        .setCompressor(compressor);
+        .setCompressor(compressor)
+        .setDocNum(this.docNum);
   }
 
   public String getName() {
@@ -558,8 +560,6 @@ public class InvertedIndexManager {
     return docs.iterator();
   }
 
-
-
   /**
    * Performs top-K ranked search using TF-IDF. Returns an iterator that returns the K documents
    * with highest TF-IDF scores.
@@ -572,13 +572,69 @@ public class InvertedIndexManager {
    * @return a iterator of ordered documents matching the query
    */
   public Iterator<Document> searchTfIdf(List<String> keywords, int topK) {
-    //todo
-    throw new UnsupportedOperationException();
+
+    Integer totalDocNum = 0;
+
+    Map<String, Integer> globalWordsDf =
+        keywords.stream().collect(Collectors.toMap(n -> n, n -> 0, (a, b) -> b));
+    ArrayList<InvertedIndex> invs = new ArrayList<>();
+
+    // get the keywords Document frequency  in query in all segments
+    for (Map.Entry<Integer, SegmentEntry> entry : this.segmentMetaData.entrySet()) {
+      totalDocNum += entry.getValue().getDocNum();
+      InvertedIndex inv = entry.getValue().openInvertedList(this.workPath, this.compressor);
+      invs.add(inv);
+      inv.accumulateKeywordsTf(globalWordsDf);
+    }
+
+    // get the global IDF for query
+    final Integer total = totalDocNum;
+    Map<String, Double> globalWordsIDF =
+        globalWordsDf.entrySet().stream()
+            .collect(
+                Collectors.toMap(
+                    Map.Entry::getKey, e -> Math.log10((double) total / e.getValue())));
+
+    Map<String, Integer> queryWordsFrequency =
+        keywords.stream().collect(Collectors.toConcurrentMap(w -> w, w -> 1, Integer::sum));
+    Map<String, Double> queryWordsTFIDF = new HashMap<>();
+    // calculate the tf-idf of query
+    for (Map.Entry<String, Double> entry : globalWordsIDF.entrySet()) {
+      queryWordsTFIDF.put(
+          entry.getKey(), entry.getValue() * queryWordsFrequency.get(entry.getKey()));
+    }
+    PriorityQueue<Pair<Double, Pair<Integer, InvertedIndex>>> pq;
+    pq = new PriorityQueue<>(topK * 2, Comparator.comparing(Pair::getKey));
+    for (InvertedIndex inv : invs) {
+      ArrayList<Pair<Double, Integer>> tfidfs =
+          inv.searchTfIdf(queryWordsTFIDF, globalWordsIDF, topK);
+      for (Pair<Double, Integer> tfidf : tfidfs) {
+        pq.add(new Pair<>(tfidf.getKey(), new Pair<>(tfidf.getValue(), inv)));
+      }
+      while (pq.size() > topK) pq.poll();
+    }
+
+    List<Document> result = new LinkedList<>();
+    while (!pq.isEmpty()) {
+      Pair<Double, Pair<Integer, InvertedIndex>> item = pq.poll();
+      InvertedIndex inv = item.getValue().getValue();
+      int docId = item.getValue().getKey();
+      result.add(inv.readDocument(docId));
+    }
+    Collections.reverse(result);
+
+    invs.forEach(InvertedIndex::close);
+
+    return result.iterator();
   }
 
   /** Returns the total number of documents within the given segment. */
   public int getNumDocuments(int segmentNum) {
-    throw new UnsupportedOperationException();
+    if (this.segmentMetaData.containsKey(segmentNum)) {
+      return this.segmentMetaData.get(segmentNum).getDocNum();
+    } else {
+      throw new RuntimeException("Wrong segment Num");
+    }
   }
 
   /**
@@ -586,13 +642,16 @@ public class InvertedIndexManager {
    * be already analyzed by the analyzer. The analyzer shouldn't be applied again.
    */
   public int getDocumentFrequency(int segmentNum, String token) {
-    throw new UnsupportedOperationException();
+    if (this.segmentMetaData.containsKey(segmentNum)) {
+      InvertedIndex inv =
+          this.segmentMetaData.get(segmentNum).openInvertedList(this.workPath, this.compressor);
+      int frequency = inv.getDocumentFrequency(token);
+      inv.close();
+      return frequency;
+    } else {
+      throw new RuntimeException("Wrong segment Num");
+    }
   }
-
-
-
-
-
 
   /**
    * Deletes all documents in all disk segments of the inverted index that match the query.

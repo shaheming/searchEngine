@@ -7,6 +7,7 @@ import com.sun.xml.internal.messaging.saaj.util.ByteOutputStream;
 import edu.uci.ics.cs221.storage.Document;
 import edu.uci.ics.cs221.storage.DocumentStore;
 import edu.uci.ics.cs221.storage.MapdbDocStore;
+import javafx.util.Pair;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -952,6 +953,96 @@ public class InvertedIndex implements AutoCloseable {
     this.headerNum = this.wordsDicEntries.size();
   }
 
+  public int getDocumentFrequency(String token) {
+    if (this.wordsDicEntries.isEmpty()) this.readHeader();
+    if (this.wordsDicEntries.containsKey(token)) return this.wordsDicEntries.get(token).getSize();
+    else return 0;
+  }
+
+  /**
+   * Map<DocID, Double> dotProductAccumulator; <SegmentID, LocalDocID> Map <DocID, Double>
+   * vectorLengthAccumulator;
+   *
+   * <p>for each segment: for each query token w: for each docID on the postingList of w: tfidf =
+   * TF(w, docID) * IDF(w); dotProductAccumulator[docID] += tfidf * queryTfIdf[w];
+   * vectorLengthAccumulator[docID] += tfidf ^ 2;
+   *
+   * <p>for each docID in this segment score(docID) = dotProductAccumulator[docID] /
+   * sqrt(vectorLengthAccumulator[docID]);
+   *
+   * @param queryWordsTFIDF
+   * @param topK
+   * @return
+   */
+  public ArrayList<Pair<Double, Integer>> searchTfIdf(
+      Map<String, Double> queryWordsTFIDF, Map<String, Double> globalWordsIDF, int topK) {
+
+    if (this.wordsDicEntries.isEmpty()) {
+      this.readHeader();
+    }
+    double[] dotProductAccumulator = new double[this.docNum];
+    double[] vectorLengthAccumulator = new double[this.docNum];
+
+    for (Map.Entry<String, Double> entry : queryWordsTFIDF.entrySet()) {
+      if (!this.wordsDicEntries.containsKey(entry.getKey())) continue;
+      InvertedIndexHeaderEntry invEntry = this.wordsDicEntries.get(entry.getKey());
+      List<Integer> docIdx = this.readDocIds(invEntry);
+      List<Integer> positionPtrs = this.readPositionListPtrs(invEntry);
+      for (int i = 0; i < docIdx.size(); i++) {
+        int docId = docIdx.get(i);
+
+        /*tfidf = TF(w, docID) * IDF(w);*/
+        Double tfidf =
+            this.getPositionListSize(positionPtrs.get(i)) * globalWordsIDF.get(entry.getKey());
+        dotProductAccumulator[docId] += tfidf * queryWordsTFIDF.get(entry.getKey());
+        vectorLengthAccumulator[docId] += Math.pow(tfidf, 2);
+      }
+    }
+    PriorityQueue<Pair<Double, Integer>> pq;
+    pq = new PriorityQueue<>(topK * 2, Comparator.comparing(Pair::getKey));
+    for (int docId = 0; docId < this.docNum; docId++) {
+      if (vectorLengthAccumulator[docId] > 0) {
+        pq.add(
+            new Pair<>(
+                dotProductAccumulator[docId] / Math.sqrt(vectorLengthAccumulator[docId]), docId));
+      }
+      while (pq.size() > topK) pq.poll();
+    }
+    return new ArrayList<>(pq);
+  }
+
+  // get the word frequency in the document
+  private Integer getPositionListSize(Integer ptr) {
+    if (!this.positionListReadBuffer.isOpen()) {
+      this.positionListReadBuffer.openChannel();
+    }
+    this.positionListReadBuffer.setPosition(ptr);
+    return this.positionListReadBuffer.readListLen();
+  }
+
+  public void accumulateKeywordsTf(Map<String, Integer> wordsTf) {
+    if (this.wordsDicEntries.size() == 0) this.readHeader();
+    for (String word : wordsTf.keySet()) {
+      if (this.wordsDicEntries.containsKey(word)) {
+        wordsTf.put(word, wordsTf.get(word) + this.wordsDicEntries.get(word).getSize());
+      }
+    }
+  }
+
+  private int getDocNumFromDb() {
+    if (this.docStore == null) throw new RuntimeException("Db is not been open");
+    return (int) this.docStore.size();
+  }
+
+  public Integer getDocNum() {
+    return this.docNum;
+  }
+
+  public InvertedIndex setDocNum(Integer docNum) {
+    this.docNum = docNum;
+    return this;
+  }
+
   private void deleteFile() {}
 
   /**
@@ -977,10 +1068,6 @@ public class InvertedIndex implements AutoCloseable {
       }
     }
     this.docNum++;
-  }
-
-  public Integer getDocNum() {
-    return this.docNum;
   }
 
   public String getSegmentName() {
@@ -1063,11 +1150,6 @@ public class InvertedIndex implements AutoCloseable {
       checker.set(i, false);
     }
     return checker;
-  }
-
-  private int getDocNumFromDb() {
-    if (this.docStore == null) throw new RuntimeException("Db is not been open");
-    return (int) this.docStore.size();
   }
 
   /**
@@ -1262,6 +1344,11 @@ public class InvertedIndex implements AutoCloseable {
       }
     }
     return synchronizedMap;
+  }
+
+  public Document readDocument(Integer docId) {
+    this.openReadOnlyDocDb();
+    return this.docStore.getDocument(docId);
   }
 
   public Map<String, List<Integer>> getAllInvertList() {
