@@ -10,8 +10,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import java.io.File;
-import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 
 import static org.junit.Assert.*;
@@ -64,7 +62,7 @@ public class Team5getDocumentFrequencyTest {
         assertEquals(1,result);
         result=invertedList.getDocumentFrequency(2,new_words.get(2));
         assertEquals(0,result);
-        
+
         result=invertedList.getDocumentFrequency(0,new_words.get(3));
         assertEquals(2,result);
         result=invertedList.getDocumentFrequency(1,new_words.get(3));
