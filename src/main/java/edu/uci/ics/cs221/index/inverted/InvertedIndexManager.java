@@ -1,10 +1,10 @@
 package edu.uci.ics.cs221.index.inverted;
-// todo
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.HashBasedTable;
 import edu.uci.ics.cs221.analysis.Analyzer;
 import edu.uci.ics.cs221.storage.Document;
+import javafx.util.Pair;
 
 import java.io.BufferedWriter;
 import java.io.FileWriter;
@@ -557,6 +557,7 @@ public class InvertedIndexManager {
     this.segmentMetaData.clear();
     return docs.iterator();
   }
+
   /**
    * Performs top-K ranked search using TF-IDF. Returns an iterator that returns the K documents
    * with highest TF-IDF scores.
@@ -569,12 +570,46 @@ public class InvertedIndexManager {
    * @return a iterator of ordered documents matching the query
    */
   public Iterator<Document> searchTfIdf(List<String> keywords, int topK) {
-    throw new UnsupportedOperationException();
+    PriorityQueue<Pair<Double, Pair<Integer, InvertedIndex>>> pq;
+    pq = new PriorityQueue<>(topK * 2, Comparator.comparing(Pair::getKey));
+    Integer totalDocNum = 0;
+
+    for (Map.Entry<Integer, SegmentEntry> entry : this.segmentMetaData.entrySet()) {
+      totalDocNum += entry.getValue().getDocNum();
+    }
+    Set<InvertedIndex> invs = new HashSet<>();
+
+    for (Map.Entry<Integer, SegmentEntry> entry : this.segmentMetaData.entrySet()) {
+      InvertedIndex inv = entry.getValue().openInvertedList(this.workPath, this.compressor);
+      invs.add(inv);
+      ArrayList<Pair<Double, Integer>> tfidfs = inv.searchTfIdf(keywords, topK, totalDocNum);
+      for (Pair<Double, Integer> tfidf : tfidfs) {
+        pq.add(new Pair<>(tfidf.getKey(), new Pair<>(tfidf.getValue(), inv)));
+      }
+      while (pq.size() > topK) pq.poll();
+    }
+    List<Document> result = new LinkedList<>();
+    while (!pq.isEmpty()) {
+      Pair<Double, Pair<Integer, InvertedIndex>> item = pq.poll();
+      InvertedIndex docinv = item.getValue().getValue();
+      System.out.println("Score: " + item.getKey() + " DocId: " + item.getValue().getKey());
+      int docId = item.getValue().getKey();
+      result.add(docinv.readDocument(docId));
+    }
+    Collections.reverse(result);
+
+    invs.forEach(InvertedIndex::close);
+
+    return result.iterator();
   }
 
   /** Returns the total number of documents within the given segment. */
   public int getNumDocuments(int segmentNum) {
-    throw new UnsupportedOperationException();
+    if (this.segmentMetaData.containsKey(segmentNum)) {
+      return this.segmentMetaData.get(segmentNum).getDocNum();
+    } else {
+      throw new RuntimeException("Wrong segment Num");
+    }
   }
 
   /**
@@ -582,7 +617,15 @@ public class InvertedIndexManager {
    * be already analyzed by the analyzer. The analyzer shouldn't be applied again.
    */
   public int getDocumentFrequency(int segmentNum, String token) {
-    throw new UnsupportedOperationException();
+    if (this.segmentMetaData.containsKey(segmentNum)) {
+      InvertedIndex inv =
+          this.segmentMetaData.get(segmentNum).openInvertedList(this.workPath, this.compressor);
+      int frequency = inv.getDocumentFrequency(token);
+      inv.close();
+      return frequency;
+    } else {
+      throw new RuntimeException("Wrong segment Num");
+    }
   }
 
   /**

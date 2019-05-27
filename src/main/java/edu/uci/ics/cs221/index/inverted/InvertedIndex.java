@@ -7,6 +7,7 @@ import com.sun.xml.internal.messaging.saaj.util.ByteOutputStream;
 import edu.uci.ics.cs221.storage.Document;
 import edu.uci.ics.cs221.storage.DocumentStore;
 import edu.uci.ics.cs221.storage.MapdbDocStore;
+import javafx.util.Pair;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -952,6 +953,35 @@ public class InvertedIndex implements AutoCloseable {
     this.headerNum = this.wordsDicEntries.size();
   }
 
+  public int getDocumentFrequency(String token) {
+    if (this.wordsDicEntries.isEmpty()) this.readHeader();
+    if (this.wordsDicEntries.containsKey(token)) return this.wordsDicEntries.get(token).getSize();
+    else return 0;
+  }
+
+  /**
+   * SearchTfid todo  to finish this part
+   *
+   * @param keywords
+   * @param topK
+   * @param totalDocNum
+   * @return
+   */
+  public ArrayList<Pair<Double, Integer>> searchTfIdf(
+      List<String> keywords, int topK, int totalDocNum) {
+    PriorityQueue<Pair<Double, Integer>> pq;
+    pq = new PriorityQueue<>(topK * 2, Comparator.comparing(Pair::getKey));
+    for (int i = 0; i < this.getDocNumFromDb(); i++) {
+      pq.add(new Pair<>((i + 0.1) / totalDocNum, i));
+      while (pq.size() > topK) pq.poll();
+    }
+    return new ArrayList<>(pq);
+  }
+
+  public Integer getDocNum() {
+    return this.docNum;
+  }
+
   private void deleteFile() {}
 
   /**
@@ -977,10 +1007,6 @@ public class InvertedIndex implements AutoCloseable {
       }
     }
     this.docNum++;
-  }
-
-  public Integer getDocNum() {
-    return this.docNum;
   }
 
   public String getSegmentName() {
@@ -1262,6 +1288,11 @@ public class InvertedIndex implements AutoCloseable {
       }
     }
     return synchronizedMap;
+  }
+
+  public Document readDocument(Integer docId) {
+    this.openReadOnlyDocDb();
+    return this.docStore.getDocument(docId);
   }
 
   public Map<String, List<Integer>> getAllInvertList() {
