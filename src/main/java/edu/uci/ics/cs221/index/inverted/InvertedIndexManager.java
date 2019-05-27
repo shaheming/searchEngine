@@ -17,6 +17,7 @@ import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 class SegmentEntry {
   private String name;
@@ -63,7 +64,8 @@ class SegmentEntry {
   InvertedIndex openInvertedList(String workPath, Compressor compressor) {
     return InvertedIndex.openInvertList(workPath, this.getName(), this.headerLen, this.headerNum)
         .setRemovedDocIdx(this.getRemovedDocsIdx())
-        .setCompressor(compressor);
+        .setCompressor(compressor)
+        .setDocNum(this.docNum);
   }
 
   public String getName() {
@@ -570,31 +572,54 @@ public class InvertedIndexManager {
    * @return a iterator of ordered documents matching the query
    */
   public Iterator<Document> searchTfIdf(List<String> keywords, int topK) {
-    PriorityQueue<Pair<Double, Pair<Integer, InvertedIndex>>> pq;
-    pq = new PriorityQueue<>(topK * 2, Comparator.comparing(Pair::getKey));
+
     Integer totalDocNum = 0;
 
+    Map<String, Integer> globalWordsDf =
+        keywords.stream().collect(Collectors.toMap(n -> n, n -> 0, (a, b) -> b));
+    ArrayList<InvertedIndex> invs = new ArrayList<>();
+
+    // get the keywords Document frequency  in query in all segments
     for (Map.Entry<Integer, SegmentEntry> entry : this.segmentMetaData.entrySet()) {
       totalDocNum += entry.getValue().getDocNum();
-    }
-    Set<InvertedIndex> invs = new HashSet<>();
-
-    for (Map.Entry<Integer, SegmentEntry> entry : this.segmentMetaData.entrySet()) {
       InvertedIndex inv = entry.getValue().openInvertedList(this.workPath, this.compressor);
       invs.add(inv);
-      ArrayList<Pair<Double, Integer>> tfidfs = inv.searchTfIdf(keywords, topK, totalDocNum);
+      inv.accumulateKeywordsTf(globalWordsDf);
+    }
+
+    // get the global IDF for query
+    final Integer total = totalDocNum;
+    Map<String, Double> globalWordsIDF =
+        globalWordsDf.entrySet().stream()
+            .collect(
+                Collectors.toMap(
+                    Map.Entry::getKey, e -> Math.log10((double) total / e.getValue())));
+
+    Map<String, Integer> queryWordsFrequency =
+        keywords.stream().collect(Collectors.toConcurrentMap(w -> w, w -> 1, Integer::sum));
+    Map<String, Double> queryWordsTFIDF = new HashMap<>();
+    // calculate the tf-idf of query
+    for (Map.Entry<String, Double> entry : globalWordsIDF.entrySet()) {
+      queryWordsTFIDF.put(
+          entry.getKey(), entry.getValue() * queryWordsFrequency.get(entry.getKey()));
+    }
+    PriorityQueue<Pair<Double, Pair<Integer, InvertedIndex>>> pq;
+    pq = new PriorityQueue<>(topK * 2, Comparator.comparing(Pair::getKey));
+    for (InvertedIndex inv : invs) {
+      ArrayList<Pair<Double, Integer>> tfidfs =
+          inv.searchTfIdf(queryWordsTFIDF, globalWordsIDF, topK);
       for (Pair<Double, Integer> tfidf : tfidfs) {
         pq.add(new Pair<>(tfidf.getKey(), new Pair<>(tfidf.getValue(), inv)));
       }
       while (pq.size() > topK) pq.poll();
     }
+
     List<Document> result = new LinkedList<>();
     while (!pq.isEmpty()) {
       Pair<Double, Pair<Integer, InvertedIndex>> item = pq.poll();
-      InvertedIndex docinv = item.getValue().getValue();
-      System.out.println("Score: " + item.getKey() + " DocId: " + item.getValue().getKey());
+      InvertedIndex inv = item.getValue().getValue();
       int docId = item.getValue().getKey();
-      result.add(docinv.readDocument(docId));
+      result.add(inv.readDocument(docId));
     }
     Collections.reverse(result);
 
