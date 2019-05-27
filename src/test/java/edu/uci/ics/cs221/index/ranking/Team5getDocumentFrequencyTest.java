@@ -9,7 +9,6 @@ import edu.uci.ics.cs221.storage.Document;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -30,36 +29,29 @@ public class Team5getDocumentFrequencyTest {
         }
         invertedList = InvertedIndexManager.createOrOpen(path, analyzer);
         invertedList.addDocument(new Document("cat dog toy"));
-        invertedList.flush();
         invertedList.addDocument(new Document("cat Dot"));
-        invertedList.flush();
         invertedList.addDocument(new Document("cat dot toy"));
         invertedList.flush();
         invertedList.addDocument(new Document("cat toy Dog"));
-        invertedList.flush();
         invertedList.addDocument(new Document("toy dog cat"));
         invertedList.flush();
         invertedList.addDocument(new Document("cat Dog"));//docs cannot be null
         invertedList.flush();
     }
 
-
+    // test if multiple keywords work or not. And we set 5 as a threshold for write counter and read counter,
+    // because I think the number will increase when we call the flush() function and we dont know the execution order
+    // of test cases, so we set them all to 5.
     @Test
     public void Test1() throws Exception {
-        List<String> words = new ArrayList<>();
-        words.add("cat");
-        words.add("dog");
-
-        Iterator<Document> iterator = invertedList.searchOrQuery(words);
-        int counter = 0;
-        while (iterator.hasNext()) {
-            String text = iterator.next().getText();
-            assertEquals(true, text.contains("dog") || text.contains("cat"));
-            counter++;
+        String words="cat dog Toy Dot";
+        List<String> new_words=analyzer.analyze(words);
+        for(int i=0;i<new_words.size();i++){
+            invertedList.getDocumentFrequency()
+            assertEquals(6, counter);
         }
-        assertEquals(6, counter);
-        assertTrue(PageFileChannel.readCounter >= 5 && PageFileChannel.writeCounter >= 5);
-        words.clear();
+
+
 
     }
 
@@ -104,28 +96,6 @@ public class Team5getDocumentFrequencyTest {
 
     }
 
-    //test other words combination
-    @Test
-    public void Test4() throws Exception {
-        List<String> words = new ArrayList<>();
-        words.add("toy");
-        words.add("dog");
-        Iterator<Document> iterator = invertedList.searchOrQuery(words);
-        int counter = 0;
-        while (iterator.hasNext()) {
-
-            String text = iterator.next().getText();
-            assertEquals(true,
-                    text.toLowerCase().contains("dog") || text.toLowerCase().contains("toy"));
-            counter++;
-
-        }
-        assertEquals(5, counter);
-        assertTrue(PageFileChannel.readCounter >= 5 && PageFileChannel.writeCounter >= 5);
-        words.clear();
-
-    }
-
     //test empty query list.
     @Test
     public void Test5() {
@@ -135,6 +105,7 @@ public class Team5getDocumentFrequencyTest {
     }
 
     @After
+
     public void deleteTmp() throws Exception {
         PageFileChannel.resetCounters();
         File f = new File(path);
