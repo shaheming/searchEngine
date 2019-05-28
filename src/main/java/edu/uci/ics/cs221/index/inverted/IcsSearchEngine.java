@@ -16,7 +16,7 @@ import java.util.*;
 public class IcsSearchEngine {
   private InvertedIndexManager indexManager;
   private Path documentDirectory;
-  private double[] pageRankSore;
+  private double[] pageRankStore;
 
   private IcsSearchEngine(Path documentDirectory, InvertedIndexManager indexManager) {
     File dir = documentDirectory.toFile();
@@ -106,32 +106,36 @@ public class IcsSearchEngine {
       double inity = beta * initScore;
       for (int i = 0; i < x.size(); i++) {
         x.set(i, initScore);
+        // y = (1 - alpha) * e / N
         y.set(i, inity);
       }
       for (int epoch = 0; epoch < 50; epoch++) {
-        matrix.mult(alpha, x, y);
+        // y = alpha*A*x + y
+        matrix.multAdd(alpha, x, y);
         double diff = 0;
         for (int i = 0; i < x.size(); i++) {
           diff += Math.abs(x.get(i) - y.get(i));
         }
-        if (diff < 0.0000001) {
-          break;
-        }
         DenseVector tmp = y;
         y = x;
         x = tmp;
-        x.set(beta, x);
+        for (int i = 0; i < y.size(); i++) {
+          y.set(i, inity);
+        }
+        if (diff < 0.00001) {
+          break;
+        }
       }
       int index = 0;
       double max = 0;
-      for (int i = 0; i < y.size(); i++) {
-        if (y.get(i) > max) {
-          max = y.get(i);
+      for (int i = 0; i < x.size(); i++) {
+        if (x.get(i) > max) {
+          max = x.get(i);
           index = i;
         }
       }
       System.out.println("MAX SCORE: " + max + " Index: " + index);
-      this.pageRankSore = y.getData();
+      this.pageRankStore = x.getData();
     } catch (Exception e) {
       System.out.println(e.toString());
       //      System.out.println(Arrays.toString(e.getStackTrace()));
@@ -145,10 +149,10 @@ public class IcsSearchEngine {
    * descending order (high scores first).
    */
   public List<Pair<Integer, Double>> getPageRankScores() {
-    Preconditions.checkNotNull(pageRankSore);
+    Preconditions.checkNotNull(pageRankStore);
     List<Pair<Integer, Double>> res = new ArrayList<>();
-    for (int i = 0; i < pageRankSore.length; i++) {
-      res.add(new Pair<>(i, pageRankSore[i]));
+    for (int i = 0; i < pageRankStore.length; i++) {
+      res.add(new Pair<>(i, pageRankStore[i]));
     }
     Collections.sort(res, (a, b) -> b.getValue().compareTo(a.getValue()));
     for (Pair p : res) {

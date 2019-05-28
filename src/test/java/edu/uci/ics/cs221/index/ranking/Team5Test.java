@@ -54,7 +54,7 @@ public class Team5Test {
 
     Iterator<Document> documentIterator = invertList.searchTfIdf(keywords, 3);
 
-    while (documentIterator.hasNext()) {
+        while (documentIterator.hasNext()) {
       System.out.println(documentIterator.next().getText());
     }
   }
