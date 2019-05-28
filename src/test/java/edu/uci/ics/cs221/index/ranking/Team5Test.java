@@ -1,13 +1,10 @@
-package edu.uci.ics.cs221.index.positional;
+package edu.uci.ics.cs221.index.ranking;
 
 import edu.uci.ics.cs221.analysis.Analyzer;
 import edu.uci.ics.cs221.analysis.ComposableAnalyzer;
 import edu.uci.ics.cs221.analysis.PorterStemmer;
 import edu.uci.ics.cs221.analysis.PunctuationTokenizer;
-import edu.uci.ics.cs221.index.inverted.DeltaVarLenCompressor;
-import edu.uci.ics.cs221.index.inverted.InvertedIndexManager;
-import edu.uci.ics.cs221.index.inverted.NaiveCompressor;
-import edu.uci.ics.cs221.index.inverted.PageFileChannel;
+import edu.uci.ics.cs221.index.inverted.*;
 import edu.uci.ics.cs221.storage.Document;
 import org.junit.After;
 import org.junit.Assert;
@@ -15,10 +12,8 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -39,7 +34,7 @@ public class Team5Test {
       directory1.mkdirs();
     }
 
-    invertList = InvertedIndexManager.createOrOpenPositional(path, analyzer, compressor);
+    invertList = InvertedIndexManager.open(path, analyzer, compressor);
   }
 
   // test simple documents with same text, each key word show only one time each document
@@ -64,11 +59,21 @@ public class Team5Test {
     }
   }
 
+  @Test
+  public void Test2() {
+    Path pages = Paths.get("./webpages");
+    IcsSearchEngine searchEngine = IcsSearchEngine.createSearchEngine(pages, invertList);
+    //    searchEngine.writeIndex();
+    searchEngine.computePageRank();
+    searchEngine.getPageRankScores();
+  }
+
   @After
   public void cleanup() throws Exception {
     PageFileChannel.resetCounters();
-    Path rootPath = Paths.get("./index/ranking");
-    Files.walk(rootPath).sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
-    Files.deleteIfExists(rootPath);
+    //    Path rootPath = Paths.get("./index/ranking");
+    //
+    // Files.walk(rootPath).sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
+    //    Files.deleteIfExists(rootPath);
   }
 }

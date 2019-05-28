@@ -111,11 +111,11 @@ public class InvertedIndexManager {
   private InvertedIndex currInvertIndex;
   private String workPath;
 
-  private InvertedIndexManager(String indexFolder, Analyzer analyzer) {
-    this.analyzer = analyzer;
-    this.currInvertIndex = new InvertedIndex(indexFolder, this.compressor);
-    this.workPath = indexFolder;
-  }
+    private InvertedIndexManager(String indexFolder, Analyzer analyzer) {
+      this.analyzer = analyzer;
+      this.currInvertIndex = new InvertedIndex(indexFolder, this.compressor);
+      this.workPath = indexFolder;
+    }
 
   private InvertedIndexManager(String indexFolder, Analyzer analyzer, Compressor compressor) {
     this.compressor = compressor;
@@ -131,8 +131,9 @@ public class InvertedIndexManager {
    * @param analyzer
    * @return
    */
-  public static InvertedIndexManager open(String indexFolder, Analyzer analyzer) {
-    InvertedIndexManager inv = new InvertedIndexManager(indexFolder, analyzer);
+  public static InvertedIndexManager open(
+      String indexFolder, Analyzer analyzer, Compressor compressor) {
+    InvertedIndexManager inv = new InvertedIndexManager(indexFolder, analyzer, compressor);
     loadMetaData(inv, Paths.get(indexFolder + "/metadata.txt"));
     return inv;
   }
