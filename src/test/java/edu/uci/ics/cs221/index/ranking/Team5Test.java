@@ -1,74 +1,168 @@
 package edu.uci.ics.cs221.index.ranking;
 
 import edu.uci.ics.cs221.analysis.Analyzer;
-import edu.uci.ics.cs221.analysis.ComposableAnalyzer;
-import edu.uci.ics.cs221.analysis.PorterStemmer;
-import edu.uci.ics.cs221.analysis.PunctuationTokenizer;
-import edu.uci.ics.cs221.index.inverted.DeltaVarLenCompressor;
+import edu.uci.ics.cs221.analysis.NaiveAnalyzer;
+import edu.uci.ics.cs221.index.inverted.Compressor;
 import edu.uci.ics.cs221.index.inverted.InvertedIndexManager;
 import edu.uci.ics.cs221.index.inverted.NaiveCompressor;
-import edu.uci.ics.cs221.index.inverted.PageFileChannel;
 import edu.uci.ics.cs221.storage.Document;
+
 import org.junit.After;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
-import java.io.File;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.Comparator;
-import java.util.Iterator;
-import java.util.List;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
+import java.io.IOException;
+import java.nio.file.*;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.function.Supplier;
 
+import static org.junit.Assert.*;
+
+/**
+ * {@link InvertedIndexManager#getNumDocuments(int)} test cases for inverted index by team 1.
+ *
+ * Parameterized over the type of inverted indices:
+ *      1. inverted index created by {@link InvertedIndexManager#createOrOpen(String, Analyzer)};
+ *      2. positional index created by {@link InvertedIndexManager#createOrOpenPositional(String, Analyzer, Compressor)}
+ *
+ * @author Zixu Wang
+ */
+@RunWith(value = Parameterized.class)
 public class Team5Test {
-  private DeltaVarLenCompressor compressor = new DeltaVarLenCompressor();
-  private NaiveCompressor naivecompressor = new NaiveCompressor();
-  private String path = "./index/ranking";
-  private Analyzer analyzer =
-      new ComposableAnalyzer(new PunctuationTokenizer(), new PorterStemmer());
-  private InvertedIndexManager invertList;
+    private InvertedIndexManager iim;
 
-  @Before
-  public void setup() {
-    File directory1 = new File(path);
-    if (!directory1.exists()) {
-      directory1.mkdirs();
+    private static String indexDir = "index/Team1TfIdfTest";
+    private static Document dummy = new Document("dummy");  // dummy document for testing
+
+    private int oldFlushThreshold;
+    private int oldMergeThreshold;
+
+    /**
+     * Parameterized test constructor.
+     *
+     * @param createIndexManager supplier that creates a inverted index for testing
+     */
+    public Team5Test(Supplier<InvertedIndexManager> createIndexManager) {
+        iim = createIndexManager.get();
+        //iim=InvertedIndexManager.createOrOpen(indexDir,new NaiveAnalyzer());
+        oldFlushThreshold = InvertedIndexManager.DEFAULT_FLUSH_THRESHOLD;
+        oldMergeThreshold = InvertedIndexManager.DEFAULT_MERGE_THRESHOLD;
+    }
+//
+//    /**
+//     * Defines all parameters (index manager suppliers)
+//     *
+//     * Use supplier functions as parameters instead of concrete InvertedIndexManager
+//     * instances to allow re-instantiation for each test case.
+//     *
+//     * @return a collection of inverted index manager suppliers.
+//     */
+    @Parameterized.Parameters
+    public static Collection indexManagerSuppliers() {
+        return Arrays.<Supplier<InvertedIndexManager>>asList(
+                () -> InvertedIndexManager.createOrOpen(
+                        indexDir, new NaiveAnalyzer()
+                ),
+                () -> InvertedIndexManager.createOrOpenPositional(
+                        indexDir, new NaiveAnalyzer(), new NaiveCompressor()
+                )
+        );
     }
 
-    invertList = InvertedIndexManager.createOrOpenPositional(path, analyzer, compressor);
-  }
-
-  // test simple documents with same text, each key word show only one time each document
-  // mainly test inverted list since inverted list is long but positional list is short
-  @Test
-  public void Test1() {
-    Assert.assertEquals(0, PageFileChannel.readCounter);
-    Assert.assertEquals(0, PageFileChannel.writeCounter);
-    invertList.addDocument(new Document("new york city"));
-    invertList.addDocument(new Document("los angeles city"));
-    invertList.flush();
-    invertList.addDocument(new Document("new york post"));
-    invertList.flush();
-    final PorterStemmer p = new PorterStemmer();
-    List<String> keywords =
-        Stream.of("new", "new", "city").map(p::stem).collect(Collectors.toList());
-
-    Iterator<Document> documentIterator = invertList.searchTfIdf(keywords, 3);
-
-    while (documentIterator.hasNext()) {
-      System.out.println(documentIterator.next().getText());
+    @Before
+    public void initialize() {
+      //iim=InvertedIndexManager.createOrOpen(indexDir,new NaiveAnalyzer());
+        InvertedIndexManager.DEFAULT_FLUSH_THRESHOLD = 10;
+        InvertedIndexManager.DEFAULT_MERGE_THRESHOLD = 4;
     }
-  }
 
-  @After
-  public void cleanup() throws Exception {
-    PageFileChannel.resetCounters();
-    Path rootPath = Paths.get("./index/ranking");
-    Files.walk(rootPath).sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
-    Files.deleteIfExists(rootPath);
-  }
+    @After
+    public void clean() {
+        try {
+            deleteDirectory(Paths.get(indexDir));
+        } catch (IOException ignored) { }
+
+        InvertedIndexManager.DEFAULT_FLUSH_THRESHOLD = oldFlushThreshold;
+        InvertedIndexManager.DEFAULT_MERGE_THRESHOLD = oldMergeThreshold;
+    }
+
+    /**
+     * Test whether the number of documents in the memory segment is reported correctly
+     */
+    @Test
+    public void inMemoryTest() {
+        //assertEquals(0, iim.getNumDocuments(0));
+
+        for (int i = 1; i <= InvertedIndexManager.DEFAULT_FLUSH_THRESHOLD; i++) {
+            iim.addDocument(dummy);
+
+        }
+        assertEquals(InvertedIndexManager.DEFAULT_FLUSH_THRESHOLD, iim.getNumDocuments(0));
+    }
+
+    /**
+     * Test whether the numbers of documents in flushed segments are reported correctly
+     */
+    @Test
+    public void flushedTest() {
+       // assertEquals(0, iim.getNumDocuments(0));
+
+        for (int i = 0; i < InvertedIndexManager.DEFAULT_FLUSH_THRESHOLD * 2; i++) {
+            iim.addDocument(dummy);
+        }
+
+        assertEquals(
+                InvertedIndexManager.DEFAULT_FLUSH_THRESHOLD,
+                iim.getNumDocuments(0)
+        );
+
+        assertEquals(
+                InvertedIndexManager.DEFAULT_FLUSH_THRESHOLD,
+                iim.getNumDocuments(1)
+        );
+    }
+
+    /**
+     * Test whether the numbers of documents in merged segments are reported correctly
+     */
+    @Test
+    public void mergedTest() {
+        //assertEquals(0, iim.getNumDocuments(0));
+
+        for (
+                int i = 0;
+                i < InvertedIndexManager.DEFAULT_FLUSH_THRESHOLD
+                        * InvertedIndexManager.DEFAULT_MERGE_THRESHOLD;
+                i++
+        ) {
+            iim.addDocument(dummy);
+        }
+
+        for (int i = 0; i < InvertedIndexManager.DEFAULT_MERGE_THRESHOLD / 2; i++) {
+            assertEquals(
+                    InvertedIndexManager.DEFAULT_FLUSH_THRESHOLD * 2,
+                    iim.getNumDocuments(i)
+            );
+        }
+    }
+
+    /**
+     * Delete a directory recursively.
+     *
+     * @param path path to the directory to be deleted.
+     * @throws IOException
+     */
+    private void deleteDirectory(Path path) throws IOException {
+        if (Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS)) {
+            try (DirectoryStream<Path> entries = Files.newDirectoryStream(path)) {
+                for (Path entry : entries) {
+                    deleteDirectory(entry);
+                }
+            }
+        }
+        Files.delete(path);
+    }
 }
