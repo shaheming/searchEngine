@@ -52,10 +52,10 @@ public class Team5Test {
     List<String> keywords =
         Stream.of("new", "new", "city").map(p::stem).collect(Collectors.toList());
 
-    Iterator<Document> documentIterator = invertList.searchTfIdf(keywords, 3);
+    Iterator<Pair<Document, Double>> documentIterator = invertList.searchTfIdf(keywords, 3);
 
-        while (documentIterator.hasNext()) {
-      System.out.println(documentIterator.next().getText());
+    while (documentIterator.hasNext()) {
+      System.out.println(documentIterator.next().getLeft().getText());
     }
   }
 

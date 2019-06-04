@@ -7,7 +7,6 @@ import com.sun.xml.internal.messaging.saaj.util.ByteOutputStream;
 import edu.uci.ics.cs221.storage.Document;
 import edu.uci.ics.cs221.storage.DocumentStore;
 import edu.uci.ics.cs221.storage.MapdbDocStore;
-import javafx.util.Pair;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -999,7 +998,7 @@ public class InvertedIndex implements AutoCloseable {
       }
     }
     PriorityQueue<Pair<Double, Integer>> pq;
-    pq = new PriorityQueue<>(topK * 2, Comparator.comparing(Pair::getKey));
+    pq = new PriorityQueue<>(topK * 2, Comparator.comparing(Pair::getLeft));
     for (int docId = 0; docId < this.docNum; docId++) {
       if (vectorLengthAccumulator[docId] > 0) {
         pq.add(

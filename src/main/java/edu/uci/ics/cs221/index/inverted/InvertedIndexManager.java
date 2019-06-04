@@ -4,7 +4,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.HashBasedTable;
 import edu.uci.ics.cs221.analysis.Analyzer;
 import edu.uci.ics.cs221.storage.Document;
-import javafx.util.Pair;
 
 import java.io.BufferedWriter;
 import java.io.FileWriter;
@@ -111,11 +110,11 @@ public class InvertedIndexManager {
   private InvertedIndex currInvertIndex;
   private String workPath;
 
-    private InvertedIndexManager(String indexFolder, Analyzer analyzer) {
-      this.analyzer = analyzer;
-      this.currInvertIndex = new InvertedIndex(indexFolder, this.compressor);
-      this.workPath = indexFolder;
-    }
+  private InvertedIndexManager(String indexFolder, Analyzer analyzer) {
+    this.analyzer = analyzer;
+    this.currInvertIndex = new InvertedIndex(indexFolder, this.compressor);
+    this.workPath = indexFolder;
+  }
 
   private InvertedIndexManager(String indexFolder, Analyzer analyzer, Compressor compressor) {
     this.compressor = compressor;
@@ -562,17 +561,21 @@ public class InvertedIndexManager {
   }
 
   /**
-   * Performs top-K ranked search using TF-IDF. Returns an iterator that returns the K documents
+   * Performs top-K ranked search using TF-IDF. Returns an iterator that returns the top K documents
    * with highest TF-IDF scores.
+   *
+   * <p>Each element is a pair of <Document, Double (TF-IDF Score)>.
+   *
+   * <p>If parameter `topK` is null, then returns all the matching documents.
    *
    * <p>Unlike Boolean Query and Phrase Query where order of the documents doesn't matter, for
    * ranked search, order of the document returned by the iterator matters.
    *
    * @param keywords, a list of keywords in the query
-   * @param topK, number of top documents weighted by TF-IDF
-   * @return a iterator of ordered documents matching the query
+   * @param topK, number of top documents weighted by TF-IDF, all documents if topK is null
+   * @return a iterator of top-k ordered documents matching the query
    */
-  public Iterator<Document> searchTfIdf(List<String> keywords, int topK) {
+  public Iterator<Pair<Document, Double>> searchTfIdf(List<String> keywords, Integer topK) {
 
     Integer totalDocNum = 0;
 
@@ -605,22 +608,22 @@ public class InvertedIndexManager {
           entry.getKey(), entry.getValue() * queryWordsFrequency.get(entry.getKey()));
     }
     PriorityQueue<Pair<Double, Pair<Integer, InvertedIndex>>> pq;
-    pq = new PriorityQueue<>(topK * 2, Comparator.comparing(Pair::getKey));
+    pq = new PriorityQueue<>(topK * 2, Comparator.comparing(Pair::getLeft));
     for (InvertedIndex inv : invs) {
       ArrayList<Pair<Double, Integer>> tfidfs =
           inv.searchTfIdf(queryWordsTFIDF, globalWordsIDF, topK);
       for (Pair<Double, Integer> tfidf : tfidfs) {
-        pq.add(new Pair<>(tfidf.getKey(), new Pair<>(tfidf.getValue(), inv)));
+        pq.add(new Pair<>(tfidf.getLeft(), new Pair<>(tfidf.getRight(), inv)));
       }
       while (pq.size() > topK) pq.poll();
     }
 
-    List<Document> result = new LinkedList<>();
+    List<Pair<Document, Double>> result = new LinkedList<>();
     while (!pq.isEmpty()) {
       Pair<Double, Pair<Integer, InvertedIndex>> item = pq.poll();
-      InvertedIndex inv = item.getValue().getValue();
-      int docId = item.getValue().getKey();
-      result.add(inv.readDocument(docId));
+      InvertedIndex inv = item.getRight().getRight();
+      int docId = item.getRight().getLeft();
+      result.add(new Pair<>(inv.readDocument(docId), item.getLeft()));
     }
     Collections.reverse(result);
 
