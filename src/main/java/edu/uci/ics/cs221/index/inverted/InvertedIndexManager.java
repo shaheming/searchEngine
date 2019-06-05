@@ -3,6 +3,7 @@ package edu.uci.ics.cs221.index.inverted;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.HashBasedTable;
 import edu.uci.ics.cs221.analysis.Analyzer;
+import edu.uci.ics.cs221.analysis.PorterStemmer;
 import edu.uci.ics.cs221.storage.Document;
 
 import java.io.BufferedWriter;
@@ -650,6 +651,8 @@ public class InvertedIndexManager {
     if (this.segmentMetaData.containsKey(segmentNum)) {
       InvertedIndex inv =
           this.segmentMetaData.get(segmentNum).openInvertedList(this.workPath, this.compressor);
+      PorterStemmer porterStemmer=new PorterStemmer();
+      token=porterStemmer.stem(token);
       int frequency = inv.getDocumentFrequency(token);
       inv.close();
       return frequency;

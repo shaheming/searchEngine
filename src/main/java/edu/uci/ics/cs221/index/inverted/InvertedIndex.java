@@ -954,6 +954,9 @@ public class InvertedIndex implements AutoCloseable {
 
   public int getDocumentFrequency(String token) {
     if (this.wordsDicEntries.isEmpty()) this.readHeader();
+    for(Map.Entry<String, InvertedIndexHeaderEntry> entry : wordsDicEntries.entrySet()){
+      System.out.println(entry.getKey());
+    }
     if (this.wordsDicEntries.containsKey(token)) return this.wordsDicEntries.get(token).getSize();
     else return 0;
   }

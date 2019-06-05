@@ -88,7 +88,7 @@ public class Team9TfidfTest {
         assertEquals(1, invertedIndex.getNumSegments());
         assertEquals(10, invertedIndex.getNumDocuments(0));
 
-        //assertEquals(7, invertedIndex.getDocumentFrequency(0, "animal"));
+        assertEquals(7, invertedIndex.getDocumentFrequency(0, "animal"));
         assertEquals(5, invertedIndex.getDocumentFrequency(0, "cat"));
         List<String> phrase = new ArrayList<>(Arrays.asList("bear", "penguin", "mussel", "animal"));
         Iterator<Pair<Document, Double>> res = invertedIndex.searchTfIdf(phrase, 2);
