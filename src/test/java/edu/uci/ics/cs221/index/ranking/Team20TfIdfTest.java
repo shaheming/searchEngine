@@ -6,6 +6,7 @@ import edu.uci.ics.cs221.analysis.PunctuationTokenizer;
 import edu.uci.ics.cs221.index.inverted.DeltaVarLenCompressor;
 import edu.uci.ics.cs221.index.inverted.InvertedIndexManager;
 import edu.uci.ics.cs221.storage.Document;
+import edu.uci.ics.cs221.index.inverted.Pair;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -15,6 +16,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;

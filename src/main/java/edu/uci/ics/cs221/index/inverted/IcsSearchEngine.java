@@ -81,10 +81,12 @@ public class IcsSearchEngine {
       }
       List<String> lines =
           Files.readAllLines(Paths.get(documentDirectory.toString(), "id-graph.tsv"));
-
+      int[] linkCount = new int[size];
+//      for (int i = 0; i < linkCount.length; i++) linkCount[i] = 0;
       for (String line : lines) {
         String[] l = line.split("\\s");
         int src = Integer.valueOf(l[0]);
+        linkCount[src]++;
         int des = Integer.valueOf(l[1]);
         nnz.get(des).add(src);
       }
@@ -97,7 +99,16 @@ public class IcsSearchEngine {
       //      matrix.transpose();
       double[] data;
       data = matrix.getData();
-      for (int i = 0; i < data.length; i++) data[i] = 1;
+      for (int i = 0; i < linkCount.length; i++) {
+        double v = 1.0 / linkCount[i];
+        int[] colptr = matrix.getColumnIndices();
+        for (int j = 0; j < colptr.length; j++) {
+          if (colptr[j] == i) {
+            data[j] = v;
+          }
+        }
+      }
+
       DenseVector x = new DenseVector(size);
       DenseVector y = new DenseVector(size);
       double initScore = 1.0 / size;
