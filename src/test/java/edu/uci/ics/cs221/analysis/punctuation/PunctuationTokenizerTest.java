@@ -8,15 +8,12 @@ import java.util.List;
 import java.util.StringTokenizer;
 import static org.junit.Assert.assertEquals;
 
-
 public class PunctuationTokenizerTest {
 
     @Test
     public void test1() {
         String text = "I am Happy Today!";
-
         List<String> expected = Arrays.asList("happy", "today");
-
         PunctuationTokenizer tokenizer = new PunctuationTokenizer();
 
         assertEquals(expected, tokenizer.tokenize(text));
