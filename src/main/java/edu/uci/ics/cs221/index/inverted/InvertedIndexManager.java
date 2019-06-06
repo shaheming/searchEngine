@@ -2,9 +2,7 @@ package edu.uci.ics.cs221.index.inverted;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.HashBasedTable;
-import edu.uci.ics.cs221.analysis.Analyzer;
-import edu.uci.ics.cs221.analysis.PorterStemmer;
-import edu.uci.ics.cs221.analysis.Stemmer;
+import edu.uci.ics.cs221.analysis.*;
 import edu.uci.ics.cs221.storage.Document;
 
 import java.io.BufferedWriter;
@@ -578,11 +576,13 @@ public class InvertedIndexManager {
    * @return a iterator of top-k ordered documents matching the query
    */
   public Iterator<Pair<Document, Double>> searchTfIdf(List<String> keywords, Integer topK) {
-    PorterStemmer stemmer=new PorterStemmer();
+    ComposableAnalyzer ana = new ComposableAnalyzer(new PunctuationTokenizer(),new PorterStemmer());
     List<String> new_keywords=new ArrayList<>();
+    String str="";
     for(int i=0;i<keywords.size();i++){
-      new_keywords.add(stemmer.stem(keywords.get(i)));
+      str=str+keywords.get(i)+" ";
     }
+    new_keywords=ana.analyze(str);
     Integer totalDocNum = 0;
     Map<String, Integer> globalWordsDf =
         new_keywords.stream().collect(Collectors.toMap(n -> n, n -> 0, (a, b) -> b));
