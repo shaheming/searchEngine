@@ -577,12 +577,15 @@ public class InvertedIndexManager {
    */
   public Iterator<Pair<Document, Double>> searchTfIdf(List<String> keywords, Integer topK) {
     ComposableAnalyzer ana = new ComposableAnalyzer(new PunctuationTokenizer(),new PorterStemmer());
-    List<String> new_keywords=new ArrayList<>();
+    List<String> new_keywords;
     String str="";
     for(int i=0;i<keywords.size();i++){
       str=str+keywords.get(i)+" ";
     }
     new_keywords=ana.analyze(str);
+    for(int j=0;j<new_keywords.size();j++){
+      System.out.println(new_keywords.get(j));
+    }
     Integer totalDocNum = 0;
     Map<String, Integer> globalWordsDf =
         new_keywords.stream().collect(Collectors.toMap(n -> n, n -> 0, (a, b) -> b));
@@ -607,7 +610,7 @@ public class InvertedIndexManager {
         globalWordsDf.entrySet().stream()
             .collect(
                 Collectors.toMap(
-                    Map.Entry::getKey, e -> Math.log10((double) total / e.getValue())));
+                    Map.Entry::getKey, e -> Math.log10((double) total / e.getValue()+1)));
 
     Map<String, Integer> queryWordsFrequency =
         new_keywords.stream().collect(Collectors.toConcurrentMap(w -> w, w -> 1, Integer::sum));
