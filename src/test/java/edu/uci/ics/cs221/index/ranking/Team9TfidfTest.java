@@ -113,7 +113,7 @@ public class Team9TfidfTest {
 
         assertEquals(7, invertedIndex.getDocumentFrequency(0, analyzer.analyze("animal").get(0)));
         assertEquals(5, invertedIndex.getDocumentFrequency(0, analyzer.analyze("cat").get(0)));
-        List<String> phrase = new ArrayList<>(Arrays.asList("bear", "penguin", "mussel", "animal"));
+        List<String> phrase = new ArrayList<>(Arrays.asList("bear", "penguin", "mussel", analyzer.analyze("animal").get(0)));
         Iterator<Pair<Document, Double>> res = invertedIndex.searchTfIdf(phrase, 2);
         int count = 0;
         List<String> expect = new ArrayList<>();
