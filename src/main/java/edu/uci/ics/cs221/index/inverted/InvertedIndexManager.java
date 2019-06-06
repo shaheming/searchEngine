@@ -599,6 +599,7 @@ public class InvertedIndexManager {
     // get the global IDF for query
     final Integer total = totalDocNum;
     if(topK==null) topK=totalDocNum;
+    if(topK==0) return null;
     Map<String, Double> globalWordsIDF =
         globalWordsDf.entrySet().stream()
             .collect(
