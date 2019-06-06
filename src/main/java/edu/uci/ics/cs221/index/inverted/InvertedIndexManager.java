@@ -599,7 +599,10 @@ public class InvertedIndexManager {
     // get the global IDF for query
     final Integer total = totalDocNum;
     if(topK==null) topK=totalDocNum;
-    if(topK==0) return null;
+    if(topK==0) {
+      List<Pair<Document, Double>> temp = new LinkedList<>();
+      return temp.iterator();
+    }
     Map<String, Double> globalWordsIDF =
         globalWordsDf.entrySet().stream()
             .collect(
