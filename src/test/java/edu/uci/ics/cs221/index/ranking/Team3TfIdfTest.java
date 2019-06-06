@@ -64,6 +64,7 @@ public class Team3TfIdfTest {
         for(int i=0;i<documents.length;i++){
             iim.addDocument(documents[i]);
         }
+        System.out.println("size "+ iim.getNumSegments());
         iim.flush();
         //test one non-exist word in our documents
         assertEquals(0,iim.getDocumentFrequency(0,"cs221"));
