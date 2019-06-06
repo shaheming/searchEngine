@@ -578,14 +578,14 @@ public class InvertedIndexManager {
    * @return a iterator of top-k ordered documents matching the query
    */
   public Iterator<Pair<Document, Double>> searchTfIdf(List<String> keywords, Integer topK) {
-//    PorterStemmer stemmer=new PorterStemmer();
-//    List<String> new_keywords=new ArrayList<>();
-//    for(int i=0;i<keywords.size();i++){
-//      new_keywords.add(stemmer.stem(keywords.get(i)));
-//    }
+    PorterStemmer stemmer=new PorterStemmer();
+    List<String> new_keywords=new ArrayList<>();
+    for(int i=0;i<keywords.size();i++){
+      new_keywords.add(stemmer.stem(keywords.get(i)));
+    }
     Integer totalDocNum = 0;
     Map<String, Integer> globalWordsDf =
-        keywords.stream().collect(Collectors.toMap(n -> n, n -> 0, (a, b) -> b));
+        new_keywords.stream().collect(Collectors.toMap(n -> n, n -> 0, (a, b) -> b));
     ArrayList<InvertedIndex> invs = new ArrayList<>();
 
     // get the keywords Document frequency  in query in all segments
@@ -606,7 +606,7 @@ public class InvertedIndexManager {
                     Map.Entry::getKey, e -> Math.log10((double) total / e.getValue())));
 
     Map<String, Integer> queryWordsFrequency =
-        keywords.stream().collect(Collectors.toConcurrentMap(w -> w, w -> 1, Integer::sum));
+        new_keywords.stream().collect(Collectors.toConcurrentMap(w -> w, w -> 1, Integer::sum));
     Map<String, Double> queryWordsTFIDF = new HashMap<>();
     // calculate the tf-idf of query
     for (Map.Entry<String, Double> entry : globalWordsIDF.entrySet()) {
@@ -656,8 +656,6 @@ public class InvertedIndexManager {
     if (this.segmentMetaData.containsKey(segmentNum)) {
       InvertedIndex inv =
           this.segmentMetaData.get(segmentNum).openInvertedList(this.workPath, this.compressor);
-      PorterStemmer porterStemmer=new PorterStemmer();
-      token=porterStemmer.stem(token);
       int frequency = inv.getDocumentFrequency(token);
       inv.close();
       return frequency;
