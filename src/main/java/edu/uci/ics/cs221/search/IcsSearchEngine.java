@@ -44,7 +44,7 @@ public class IcsSearchEngine {
           .forEach(
               n -> {
                 try {
-                  //todo only read the third line
+
                   String text = new String(Files.readAllBytes(n.toPath()), StandardCharsets.UTF_8);
                   this.indexManager.addDocument(new Document(text));
                 } catch (Exception e) {
@@ -110,11 +110,10 @@ public class IcsSearchEngine {
       double initScore = 1.0 ;/// size;
       double alpha = 0.85;
       double beta = 1 - alpha;
-      double inity = beta * initScore;
       for (int i = 0; i < x.size(); i++) {
         x.set(i, initScore);
         // y = (1 - alpha) * e / N
-        y.set(i, inity);
+        y.set(i, beta);
       }
       for (int epoch = 0; epoch < numIterations; epoch++) {
         // y = alpha*A*x + y
@@ -127,7 +126,7 @@ public class IcsSearchEngine {
         y = x;
         x = tmp;
         for (int i = 0; i < y.size(); i++) {
-          y.set(i, inity);
+          y.set(i, beta);
         }
         if (diff < 0.00001) {
           break;
@@ -188,6 +187,20 @@ public class IcsSearchEngine {
    */
   public Iterator<Pair<Document, Double>> searchQuery(
       List<String> query, int topK, double pageRankWeight) {
-    throw new UnsupportedOperationException();
+      Iterator<Pair<Document, Double>> res=indexManager.searchTfIdf(query,null);
+      List<Pair<Document, Double>> final_result = new LinkedList<>();
+      while(res.hasNext()){
+        Pair<Document, Double> result = res.next();
+        Document document=result.getLeft();
+        String ID=document.getText().split("\n")[0];
+        int id=Integer.parseInt(ID);
+        double score_tf=result.getRight();
+        double new_score=score_tf+pageRankWeight*(double)pageRankStore[id];
+        Pair<Document, Double> temp = new Pair<>(document,new_score);
+        final_result.add(temp);
+      }
+
+
+      return  final_result.iterator();
   }
 }
