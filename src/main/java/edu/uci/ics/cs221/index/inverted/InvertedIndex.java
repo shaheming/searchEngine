@@ -439,6 +439,7 @@ public class InvertedIndex implements AutoCloseable {
   private DocumentStore docStore;
   private Map<String, List<Integer>> invertList = new TreeMap<>();
   private Map<String, List<Integer>> positionList = new TreeMap<>();
+  private Map<String, List<Integer>> positionListFreq = new TreeMap<>();
   private PageFileChannel invertedListFileChannel;
   private PageFileChannel positionListFileChannel;
   private String segmentName;
@@ -646,7 +647,10 @@ public class InvertedIndex implements AutoCloseable {
     Deque<Integer> removedDq = new LinkedList<>(src.getRemovedDocIdx());
     ArrayList<Integer> ids = src.readDocIds(headerEntry);
     ArrayList<Integer> ptrs = src.readPositionListPtrs(headerEntry);
+    ArrayList<Integer> freqs = src.readPositionListFreqs(headerEntry);
+    //    List<Integer>
     ArrayList<Integer> newDocIds = new ArrayList<>();
+    ArrayList<Integer> newFreqs = new ArrayList<>();
     ArrayList<Integer> newPtrs = new ArrayList<>();
     String key = headerEntry.getKey();
 
@@ -669,12 +673,15 @@ public class InvertedIndex implements AutoCloseable {
       newPositionListPtr += rawBytes.getCount() + 4;
 
       newDocIds.add(id - counter + offset);
+      newFreqs.add(freqs.get(counter));
     }
 
     if (des.positionList.containsKey(key)) {
       des.positionList.get(key).addAll(newPtrs);
+      des.positionListFreq.get(key).addAll(newFreqs);
     } else {
       des.positionList.put(key, newPtrs);
+      des.positionListFreq.put(key, newFreqs);
     }
 
     if (des.invertList.containsKey(key)) {
@@ -724,6 +731,29 @@ public class InvertedIndex implements AutoCloseable {
     this.positionListReadBuffer.setPosition(ptr);
     int counter = this.positionListReadBuffer.readListLen();
     return this.positionListReadBuffer.readNBytes(counter);
+  }
+
+  private ArrayList<Integer> readPositionListFreqs(InvertedIndexHeaderEntry entry) {
+    if (!this.postingListReadBuffer.isOpen()) {
+      this.postingListReadBuffer.openChannel();
+    }
+    // skip the invert list;
+    this.postingListReadBuffer.setPosition(entry.getDocIdListPtr());
+    int counter = this.postingListReadBuffer.readListLen();
+    this.postingListReadBuffer.movePtrNBytes(counter);
+    // skip positional ptrs
+    counter = this.postingListReadBuffer.readListLen();
+    this.postingListReadBuffer.movePtrNBytes(counter);
+
+    counter = this.postingListReadBuffer.readListLen();
+    ByteOutputStream byteSteam = this.postingListReadBuffer.readNBytes(counter);
+
+    ByteBuffer byteBuffer = ByteBuffer.wrap(byteSteam.getBytes(), 0, byteSteam.getCount());
+    ArrayList<Integer> integers = new ArrayList<>();
+    while (byteBuffer.hasRemaining()) {
+      integers.add(byteBuffer.getInt());
+    }
+    return integers;
   }
 
   private LinkedList<Integer> getRemovedDocIdx() {
@@ -847,7 +877,7 @@ public class InvertedIndex implements AutoCloseable {
       listStreamBuffer.write(encoded, 0, encoded.length);
       curListPtr += encoded.length + 4;
 
-      // this is used to merge flush
+      // this is used to merge flush, do not need write positional list
       if (!this.positionList.isEmpty()) {
         encoded = compressor.encode(this.positionList.get(entry.getKey()));
         intBuff.putInt(encoded.length);
@@ -855,15 +885,44 @@ public class InvertedIndex implements AutoCloseable {
         intBuff.clear();
         listStreamBuffer.write(encoded, 0, encoded.length);
         curListPtr += encoded.length + 4;
+
+        List<Integer> freqs = this.positionListFreq.get(entry.getKey());
+        intBuff.putInt(freqs.size() * 4);
+        listStreamBuffer.write(intBuff.array(), 0, intBuff.capacity());
+        intBuff.clear();
+        for (Integer s : freqs) {
+          intBuff.putInt(s);
+          listStreamBuffer.write(intBuff.array(), 0, intBuff.capacity());
+          intBuff.clear();
+        }
+        curListPtr += freqs.size() * 4 + 4;
       }
+      //      List<Integer> freqs = this.positionListFreq.get(entry.getKey());
+      //      ByteArrayOutputStream freqsBuffer = new ByteArrayOutputStream();
+      //      List<Integer> freq = new ArrayList<>(1);
+      //      for (Integer s : freqs) {
+      //        freq.set(0, s);
+      //        byte[] encodedFreq = this.compressor.encode(freq);
+      //        freqsBuffer.write(encodedFreq, 0, encodedFreq.length);
+      //      }
+      //      intBuff.clear();
+      //      intBuff.putInt(freqsBuffer.size());
+      //      listStreamBuffer.write(intBuff.array(), 0, intBuff.capacity());
+      //      intBuff.clear();
+      //      listStreamBuffer.write(freqsBuffer.toByteArray(), 0, freqsBuffer.size());
+      //      curListPtr += freqsBuffer.size() + 4;
 
       // this is used to normal flush
       if (!this.position.isEmpty()) {
         ArrayList<Integer> ptrs = new ArrayList<>(entry.getValue().size());
+        List<Integer> freqs = new ArrayList<>(entry.getValue().size());
         List<Integer> docIds = entry.getValue();
         for (Integer docId : docIds) {
           ptrs.add(curPositionListPtr);
-          encoded = compressor.encode(this.position.get(entry.getKey(), docId));
+          List<Integer> positionList = this.position.get(entry.getKey(), docId);
+          // add position frequency
+          freqs.add(positionList.size());
+          encoded = compressor.encode(positionList);
           assert positionListWriteBuffer != null;
           positionListWriteBuffer.putInt(encoded.length);
           positionListWriteBuffer.put(ByteBuffer.wrap(encoded, 0, encoded.length));
@@ -872,11 +931,23 @@ public class InvertedIndex implements AutoCloseable {
         intBuff.clear();
         encoded = compressor.encode(ptrs);
         intBuff.putInt(encoded.length);
-        intBuff.clear();
         listStreamBuffer.write(intBuff.array(), 0, intBuff.capacity());
         intBuff.clear();
         listStreamBuffer.write(encoded, 0, encoded.length);
+
         curListPtr += encoded.length + 4;
+
+        intBuff.putInt(freqs.size() * 4);
+        listStreamBuffer.write(intBuff.array(), 0, intBuff.capacity());
+        intBuff.clear();
+
+        for (Integer s : freqs) {
+          intBuff.putInt(s);
+          listStreamBuffer.write(intBuff.array(), 0, intBuff.capacity());
+          intBuff.clear();
+        }
+
+        curListPtr += freqs.size() * 4 + 4;
       }
 
       curWordPtr += entry.getKey().getBytes().length;
@@ -954,9 +1025,9 @@ public class InvertedIndex implements AutoCloseable {
 
   public int getDocumentFrequency(String token) {
     if (this.wordsDicEntries.isEmpty()) this.readHeader();
-//    for(Map.Entry<String, InvertedIndexHeaderEntry> entry : wordsDicEntries.entrySet()){
-//      System.out.println(entry.getKey());
-//    }
+    //    for(Map.Entry<String, InvertedIndexHeaderEntry> entry : wordsDicEntries.entrySet()){
+    //      System.out.println(entry.getKey());
+    //    }
     if (this.wordsDicEntries.containsKey(token)) return this.wordsDicEntries.get(token).getSize();
     else return 0;
   }
@@ -1062,7 +1133,6 @@ public class InvertedIndex implements AutoCloseable {
 
       ArrayList<Integer> positionList = positionMap.get(key);
       this.position.put(key, this.docNum, positionList);
-
       if (this.invertList.containsKey(key)) {
         invertList.get(key).add(this.docNum);
       } else {
