@@ -199,8 +199,23 @@ public class IcsSearchEngine {
         Pair<Document, Double> temp = new Pair<>(document,new_score);
         final_result.add(temp);
       }
+      Collections.sort(final_result, new Comparator<Pair<Document, Double>>() {
+        @Override
+        public int compare(Pair<Document, Double> o1, Pair<Document, Double> o2) {
+            double s1=o1.getRight();
+            double s2=o2.getRight();
+            if(s2>=s1){
+              return 0;
+            }
+            else return 1;
+        }
+      });
+      int size=final_result.size();
+      if(topK>size) topK=size;
+      List<Pair<Document, Double>> output = new LinkedList<>();
+      for(int i=0;i<topK;i++)
+        output.add(final_result.get(i));
 
-
-      return  final_result.iterator();
+      return  output.iterator();
   }
 }
