@@ -44,6 +44,7 @@ public class IcsSearchEngine {
           .forEach(
               n -> {
                 try {
+                  //todo only read the third line 
                   String text = new String(Files.readAllBytes(n.toPath()), StandardCharsets.UTF_8);
                   this.indexManager.addDocument(new Document(text));
                 } catch (Exception e) {
