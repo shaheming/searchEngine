@@ -94,7 +94,9 @@ public class IcsSearchEngine {
       double[] data;
       data = matrix.getData();
       for (int i = 0; i < linkCount.length; i++) {
-        double v = 1.0 / linkCount[i];
+        double v;
+        if(linkCount[i]==0) v=0.0;
+        else v = 1.0 / linkCount[i];
         int[] colptr = matrix.getColumnIndices();
         for (int j = 0; j < colptr.length; j++) {
           if (colptr[j] == i) {
