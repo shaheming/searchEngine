@@ -655,10 +655,13 @@ public class InvertedIndex implements AutoCloseable {
     String key = headerEntry.getKey();
 
     // des.positListBuffer = new
+
     int newPositionListPtr = positionListWriteBuffer.getWriteCount();
     Iterator<Integer> it = ptrs.iterator();
+    int index = 0;
     for (Integer id : ids) {
       int ptr = it.next();
+      index++;
       if ((removedDq.size() > 0) && removedDq.peek() <= id) {
         removedDq.poll();
         counter++;
@@ -673,7 +676,7 @@ public class InvertedIndex implements AutoCloseable {
       newPositionListPtr += rawBytes.getCount() + 4;
 
       newDocIds.add(id - counter + offset);
-      newFreqs.add(freqs.get(counter));
+      newFreqs.add(freqs.get(index - 1));
     }
 
     if (des.positionList.containsKey(key)) {
@@ -936,7 +939,6 @@ public class InvertedIndex implements AutoCloseable {
         listStreamBuffer.write(encoded, 0, encoded.length);
 
         curListPtr += encoded.length + 4;
-
         intBuff.putInt(freqs.size() * 4);
         listStreamBuffer.write(intBuff.array(), 0, intBuff.capacity());
         intBuff.clear();
@@ -1060,13 +1062,11 @@ public class InvertedIndex implements AutoCloseable {
       if (!this.wordsDicEntries.containsKey(entry.getKey())) continue;
       InvertedIndexHeaderEntry invEntry = this.wordsDicEntries.get(entry.getKey());
       List<Integer> docIdx = this.readDocIds(invEntry);
-      List<Integer> positionPtrs = this.readPositionListPtrs(invEntry);
+      List<Integer> positionFreqs = this.readPositionListFreqs(invEntry);
       for (int i = 0; i < docIdx.size(); i++) {
         int docId = docIdx.get(i);
-
         /*tfidf = TF(w, docID) * IDF(w);*/
-        Double tfidf =
-            this.getPositionListSize(positionPtrs.get(i)) * globalWordsIDF.get(entry.getKey());
+        Double tfidf = positionFreqs.get(i) * globalWordsIDF.get(entry.getKey());
         dotProductAccumulator[docId] += tfidf * queryWordsTFIDF.get(entry.getKey());
         vectorLengthAccumulator[docId] += Math.pow(tfidf, 2);
       }
@@ -1197,6 +1197,7 @@ public class InvertedIndex implements AutoCloseable {
       this.close();
     }
   }
+
 
   /**
    * do or operation to all inverted list

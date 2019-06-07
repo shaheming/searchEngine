@@ -583,9 +583,7 @@ public class InvertedIndexManager {
       str=str+keywords.get(i)+" ";
     }
     new_keywords=ana.analyze(str);
-    for(int j=0;j<new_keywords.size();j++){
-      System.out.println(new_keywords.get(j));
-    }
+
     Integer totalDocNum = 0;
     Map<String, Integer> globalWordsDf =
         new_keywords.stream().collect(Collectors.toMap(n -> n, n -> 0, (a, b) -> b));
