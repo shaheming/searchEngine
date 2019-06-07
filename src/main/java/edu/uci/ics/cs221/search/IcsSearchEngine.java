@@ -44,7 +44,7 @@ public class IcsSearchEngine {
           .forEach(
               n -> {
                 try {
-                  //todo only read the third line 
+                  //todo only read the third line
                   String text = new String(Files.readAllBytes(n.toPath()), StandardCharsets.UTF_8);
                   this.indexManager.addDocument(new Document(text));
                 } catch (Exception e) {
@@ -105,8 +105,8 @@ public class IcsSearchEngine {
 
       DenseVector x = new DenseVector(size);
       DenseVector y = new DenseVector(size);
-      double initScore = 1.0 / size;
-      double alpha = 0.8;
+      double initScore = 1.0 ;/// size;
+      double alpha = 0.85;
       double beta = 1 - alpha;
       double inity = beta * initScore;
       for (int i = 0; i < x.size(); i++) {
