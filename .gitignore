@@ -30,4 +30,6 @@ hs_err_pid*
 
 # CS 221 invert index and data files
 *.db
-./index 
+index/
+webpages/
+

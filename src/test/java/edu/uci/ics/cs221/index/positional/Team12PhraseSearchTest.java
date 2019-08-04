@@ -20,7 +20,8 @@ import java.util.List;
 import static org.junit.Assert.*;
 
 
-public class Team12PhraseSearchTest {
+public class
+Team12PhraseSearchTest {
     private String path = "./index/Team12PhraseSearchTest";
     private Analyzer analyzer = new ComposableAnalyzer(new PunctuationTokenizer(), new PorterStemmer());
     private Compressor compressor = new DeltaVarLenCompressor();
