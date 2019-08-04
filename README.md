@@ -39,4 +39,4 @@ Also, we compressed the data based on delta encoding and variable-length encodin
 3. You can run the `HelloWorld` program under `src/main/java/edu.uci.ics.cs221` package to test if everything works.
 
 ## Project 4
-Implement the page rank use TF-IDF and page rank.
+Implement ranking use TF-IDF and page rank.
