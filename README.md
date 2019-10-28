@@ -1,4 +1,4 @@
-## CS221 Project - Peterman Search Engine
+## Peterman Search Engine
 
 ## Project 1
 In this project, we implement:
